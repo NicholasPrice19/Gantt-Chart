@@ -183,6 +183,19 @@
   .fr input:focus,.fr select:focus{border-color:var(--accent);}
   .row{display:flex;gap:10px;} .row>div{flex:1;min-width:0;}
   .mf{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;}
+  /* RACIX & budget summary */
+  .modal.wide{width:960px;}
+  .sumh{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin:16px 0 6px;font-weight:600;}
+  .sumt{width:100%;border-collapse:collapse;}
+  .sumt th,.sumt td{position:static;height:auto;padding:6px 8px;font-size:11.5px;text-align:center;border:1px solid var(--border);}
+  .sumt th{font-size:10px;}
+  .sumt td:first-child,.sumt th:first-child{text-align:left;}
+  .sumt tr.tot td{font-weight:700;background:var(--header-bg);}
+  .sumt .num{font-family:'Space Mono',monospace;}
+  .note{font-size:11px;color:#ffc48a;background:rgba(255,159,67,.08);border:1px solid rgba(255,159,67,.25);border-radius:5px;padding:8px 10px;margin-top:10px;line-height:1.45;}
+  .barcell{display:flex;align-items:center;gap:6px;}
+  .hb{height:8px;border-radius:2px;}
+  .wsrow td{white-space:normal;}
 
   @media print {
     @page { size: A3 landscape; margin: 10mm; }
@@ -221,6 +234,7 @@
     <button class="btn" id="cpBtn" onclick="toggleCP()">Focus critical path</button>
     <button class="btn primary" id="depsBtn" onclick="toggleDeps()">⤳ Deps: CP</button>
     <button class="btn" id="hrsBtn" onclick="toggleHrs()">Hours &amp; cost</button>
+    <button class="btn" onclick="openSummary()">RACIX &amp; Budget</button>
     <button class="btn" onclick="autoSchedule()">⟳ Reschedule</button>
     <button class="btn" onclick="cleanPreds()">✂ Clean Preds</button>
     <button class="btn" onclick="exportCSV()">↓ CSV</button>
@@ -267,6 +281,15 @@
         <div class="tl" id="tline"></div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- RACIX & BUDGET SUMMARY -->
+<div class="mb" id="summary" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal wide">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">RACIX &amp; Budget Summary</h2>
+    <button class="btn" onclick="document.getElementById('summary').classList.remove('open')">Close</button></div>
+    <div id="sumBody"></div>
   </div>
 </div>
 
@@ -318,66 +341,82 @@ const WS = {
   GEN:{ n:"General / whole team",           c:"#94a3b8" }
 };
 
+// Non-personnel costs (Project Charter, Equipment Costs)
+const EQUIPMENT = [
+  { item:"Sundries (Microsoft Suite Software)", note:"$5 per student per month x 4 students x 12 months", cost:240 },
+  { item:"Transport", note:"3 NTRO site visits, 2 industry site visits (Linfox, NewVolt)", cost:250 }
+];
+const FACULTY_ALLOWANCE = 800;   // Faculty consumables allowance for direct purchasing
+
 const TASKS = [
-  { wbs:"1",    group:true, ms:false, ws:"GEN", status:"",            name:"Project Definition & Preliminary Planning", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
-  { wbs:"1.1",  group:false, ms:false, ws:"GEN", status:"Complete",    name:"Confirm project scope, objectives & deliverables", start:"2026-07-27", dur:18, pred:"", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"C", ntro:"C", nickHrs:19, eliasHrs:26, malharHrs:24, varunHrs:23, supHrs:1, ntroHrs:1 },
-  { wbs:"1.2",  group:false, ms:false, ws:"INF", status:"Complete",    name:"Define infrastructure & technology scope, objectives & data sources", start:"2026-08-14", dur:21, pred:"1.1", nick:"A", elias:"I", malhar:"I", varun:"C", sup:"C", ntro:"", nickHrs:31, eliasHrs:1, malharHrs:1, varunHrs:4, supHrs:1, ntroHrs:0 },
-  { wbs:"1.3",  group:false, ms:false, ws:"POL", status:"Complete",    name:"Assess current regulatory landscape", start:"2026-08-14", dur:24, pred:"1.1", nick:"I", elias:"I", malhar:"A", varun:"C", sup:"C", ntro:"", nickHrs:1, eliasHrs:1, malharHrs:46, varunHrs:5, supHrs:1, ntroHrs:0 },
-  { wbs:"1.4",  group:false, ms:false, ws:"FRT", status:"Complete",    name:"Define freight profile, segmentation & route scenario scope and methodology", start:"2026-08-14", dur:27, pred:"1.1", nick:"R", elias:"C", malhar:"C", varun:"A", sup:"C", ntro:"C", nickHrs:28, eliasHrs:7, malharHrs:6, varunHrs:48, supHrs:1, ntroHrs:1 },
-  { wbs:"1.5",  group:false, ms:false, ws:"ECO", status:"Complete",    name:"Define economic scope, inputs & evaluation metrics (TCO, NPV, payback, feasibility score)", start:"2026-08-14", dur:14, pred:"1.1", nick:"I", elias:"A", malhar:"C", varun:"C", sup:"C", ntro:"", nickHrs:0, eliasHrs:28, malharHrs:3, varunHrs:3, supHrs:1, ntroHrs:0 },
-  { wbs:"1.6",  group:false, ms:false, ws:"ECO", status:"Complete",    name:"Design Excel workbook architecture for the PoC model", start:"2026-08-28", dur:10, pred:"1.5", nick:"C", elias:"A", malhar:"C", varun:"C", sup:"C", ntro:"", nickHrs:2, eliasHrs:20, malharHrs:2, varunHrs:2, supHrs:1, ntroHrs:0 },
-  { wbs:"M1",   group:false, ms:true, ws:"GEN", status:"Complete",    name:"Baseline Plan submitted (Charter, Gantt, GRA)", start:"2026-08-28", dur:0, pred:"1.1", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"I", nickHrs:3, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:2, ntroHrs:0 },
-  { wbs:"M2",   group:false, ms:true, ws:"GEN", status:"Complete",    name:"Project definition & preliminary research complete", start:"2026-09-10", dur:0, pred:"1.2,1.3,1.4,1.6,2.1", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"C", nickHrs:3, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:2, ntroHrs:1 },
-  { wbs:"2",    group:true, ms:false, ws:"GEN", status:"",            name:"Research & Data Collection", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
-  { wbs:"2.1",  group:false, ms:false, ws:"GEN", status:"Complete",    name:"Review government reports, studies & industry white papers", start:"2026-07-27", dur:39, pred:"", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"I", ntro:"C", nickHrs:40, eliasHrs:55, malharHrs:53, varunHrs:49, supHrs:1, ntroHrs:1 },
-  { wbs:"2.2",  group:false, ms:false, ws:"FRT", status:"Complete",    name:"Develop preview PoC model with 3 archetypes (NTRO progress update)", start:"2026-09-03", dur:15, pred:"1.5", nick:"R", elias:"R", malhar:"C", varun:"A", sup:"C", ntro:"I", nickHrs:15, eliasHrs:21, malharHrs:4, varunHrs:27, supHrs:1, ntroHrs:0 },
-  { wbs:"2.3",  group:false, ms:false, ws:"INF", status:"Complete",    name:"Review BEV technology options across freight archetypes", start:"2026-09-10", dur:22, pred:"1.2,M2", nick:"A", elias:"C", malhar:"I", varun:"C", sup:"I", ntro:"C", nickHrs:32, eliasHrs:5, malharHrs:1, varunHrs:5, supHrs:1, ntroHrs:1 },
-  { wbs:"2.4",  group:false, ms:false, ws:"INF", status:"In Progress", name:"Define charging & grid connection requirements (DNSP, connection, MCS readiness)", start:"2026-10-02", dur:18, pred:"2.3", nick:"A", elias:"C", malhar:"C", varun:"I", sup:"C", ntro:"C", nickHrs:26, eliasHrs:4, malharHrs:4, varunHrs:1, supHrs:1, ntroHrs:1 },
-  { wbs:"2.5",  group:false, ms:false, ws:"FRT", status:"In Progress", name:"Build Australian freight profile & route-scenario evidence base", start:"2026-09-10", dur:43, pred:"1.4,M2", nick:"R", elias:"C", malhar:"I", varun:"A", sup:"C", ntro:"C", nickHrs:44, eliasHrs:11, malharHrs:2, varunHrs:77, supHrs:1, ntroHrs:1 },
-  { wbs:"2.6",  group:false, ms:false, ws:"POL", status:"In Progress", name:"Integrate policy bank with the single model", start:"2026-09-10", dur:38, pred:"1.3,M2", nick:"I", elias:"C", malhar:"A", varun:"C", sup:"C", ntro:"", nickHrs:1, eliasHrs:9, malharHrs:73, varunHrs:8, supHrs:1, ntroHrs:0 },
-  { wbs:"2.7",  group:false, ms:false, ws:"POL", status:"In Progress", name:"Analyse federal reports for nation-wide road freight electrification policies", start:"2026-09-10", dur:50, pred:"M2", nick:"I", elias:"I", malhar:"A", varun:"I", sup:"C", ntro:"C", nickHrs:2, eliasHrs:2, malharHrs:96, varunHrs:2, supHrs:1, ntroHrs:1 },
-  { wbs:"M3",   group:false, ms:true, ws:"GEN", status:"Not Started", name:"Freight segmentation & feasibility framework complete", start:"2026-10-23", dur:0, pred:"2.4,2.5,2.6", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"C", nickHrs:3, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:2, ntroHrs:1 },
-  { wbs:"2.8",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Build freight cost profiles & extend Excel architecture for uncertainty", start:"2026-10-23", dur:21, pred:"1.6,M3", nick:"C", elias:"A", malhar:"C", varun:"R", sup:"C", ntro:"", nickHrs:4, eliasHrs:43, malharHrs:5, varunHrs:26, supHrs:1, ntroHrs:0 },
-  { wbs:"M4",   group:false, ms:true, ws:"INF", status:"Not Started", name:"All Energy Australia attended (28-29 Oct)", start:"2026-10-28", dur:0, pred:"2.4", nick:"A", elias:"R", malhar:"R", varun:"R", sup:"I", ntro:"I", nickHrs:4, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:1, ntroHrs:0 },
-  { wbs:"2.9",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Industry engagement to validate infrastructure assumptions (Linfox, NTRO, conference)", start:"2026-10-28", dur:30, pred:"2.4,M4", nick:"A", elias:"C", malhar:"I", varun:"C", sup:"I", ntro:"C", nickHrs:44, eliasHrs:7, malharHrs:1, varunHrs:6, supHrs:1, ntroHrs:1 },
-  { wbs:"2.10", group:false, ms:false, ws:"ECO", status:"Not Started", name:"Integrate case studies into cost profiles & collect supporting financial data", start:"2026-11-13", dur:35, pred:"2.8", nick:"C", elias:"A", malhar:"C", varun:"R", sup:"C", ntro:"C", nickHrs:6, eliasHrs:71, malharHrs:8, varunHrs:44, supHrs:1, ntroHrs:1 },
-  { wbs:"2.11", group:false, ms:false, ws:"POL", status:"Not Started", name:"Introduce priority-based policy setup into the integrated model", start:"2026-10-30", dur:42, pred:"2.6,2.7", nick:"I", elias:"C", malhar:"A", varun:"I", sup:"C", ntro:"", nickHrs:1, eliasHrs:10, malharHrs:81, varunHrs:1, supHrs:1, ntroHrs:0 },
-  { wbs:"M5",   group:false, ms:true, ws:"GEN", status:"Not Started", name:"Case studies & data collection complete", start:"2026-12-18", dur:0, pred:"2.9,2.10,2.11", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"C", nickHrs:3, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:2, ntroHrs:1 },
-  { wbs:"3",    group:true, ms:false, ws:"GEN", status:"",            name:"Analysis & Model Development", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
-  { wbs:"3.1",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Design infrastructure & technology model inputs & outputs (DNSP scoring, charging, vehicle DB)", start:"2026-12-18", dur:21, pred:"2.4,2.9,M5", nick:"A", elias:"C", malhar:"I", varun:"C", sup:"C", ntro:"", nickHrs:31, eliasHrs:5, malharHrs:1, varunHrs:4, supHrs:1, ntroHrs:0 },
-  { wbs:"3.2",  group:false, ms:false, ws:"INF", status:"In Progress", name:"Configure route input data via Google Routes & Open Charge Map APIs", start:"2026-12-18", dur:42, pred:"2.5,M5", nick:"A", elias:"I", malhar:"I", varun:"C", sup:"", ntro:"", nickHrs:62, eliasHrs:2, malharHrs:2, varunHrs:9, supHrs:0, ntroHrs:0 },
-  { wbs:"3.3",  group:false, ms:false, ws:"FRT", status:"Not Started", name:"Develop freight segmentation, select route scenarios & build duty-cycle inputs", start:"2026-12-18", dur:35, pred:"2.5,M5", nick:"R", elias:"C", malhar:"I", varun:"A", sup:"C", ntro:"C", nickHrs:36, eliasHrs:9, malharHrs:1, varunHrs:63, supHrs:1, ntroHrs:1 },
-  { wbs:"3.4",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Build TCO/NPV models per case study & run sensitivity analysis", start:"2027-01-22", dur:21, pred:"2.10,3.3", nick:"C", elias:"A", malhar:"C", varun:"C", sup:"C", ntro:"", nickHrs:4, eliasHrs:43, malharHrs:5, varunHrs:4, supHrs:1, ntroHrs:0 },
-  { wbs:"3.5",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Develop Monte Carlo distributions, run simulations & build/test initial prototype", start:"2027-02-12", dur:16, pred:"3.1,3.2,3.4,2.11", nick:"R", elias:"A", malhar:"R", varun:"R", sup:"C", ntro:"", nickHrs:16, eliasHrs:33, malharHrs:22, varunHrs:20, supHrs:1, ntroHrs:0 },
-  { wbs:"M6",   group:false, ms:true, ws:"GEN", status:"Not Started", name:"Excel model & feasibility tool prototype complete", start:"2027-02-28", dur:0, pred:"3.5", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"I", nickHrs:3, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:2, ntroHrs:0 },
-  { wbs:"4",    group:true, ms:false, ws:"GEN", status:"",            name:"Integration, Validation & Scenario Testing", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
-  { wbs:"4.1",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Integrate & validate economic outputs into combined feasibility score", start:"2027-02-28", dur:19, pred:"M6", nick:"C", elias:"A", malhar:"C", varun:"C", sup:"C", ntro:"", nickHrs:3, eliasHrs:39, malharHrs:4, varunHrs:4, supHrs:1, ntroHrs:0 },
-  { wbs:"4.2",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Implement infrastructure & technology inputs into Excel model", start:"2027-02-28", dur:14, pred:"3.1,M6", nick:"A", elias:"C", malhar:"I", varun:"C", sup:"", ntro:"", nickHrs:21, eliasHrs:3, malharHrs:1, varunHrs:3, supHrs:0, ntroHrs:0 },
-  { wbs:"4.3",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Integrate route & charger API outputs into final model", start:"2027-02-28", dur:12, pred:"3.2,M6", nick:"A", elias:"C", malhar:"I", varun:"C", sup:"", ntro:"", nickHrs:18, eliasHrs:3, malharHrs:0, varunHrs:3, supHrs:0, ntroHrs:0 },
-  { wbs:"4.4",  group:false, ms:false, ws:"FRT", status:"Not Started", name:"Integrate freight segments, route scenarios & duty-cycle assumptions with NTRO and model", start:"2027-02-28", dur:14, pred:"3.3,M6", nick:"C", elias:"C", malhar:"I", varun:"A", sup:"", ntro:"C", nickHrs:3, eliasHrs:3, malharHrs:1, varunHrs:25, supHrs:0, ntroHrs:1 },
-  { wbs:"4.5",  group:false, ms:false, ws:"POL", status:"Not Started", name:"Integrate state & federal policies into feasibility scores and gate system", start:"2027-02-28", dur:14, pred:"2.11,M6", nick:"I", elias:"C", malhar:"A", varun:"I", sup:"C", ntro:"", nickHrs:0, eliasHrs:3, malharHrs:27, varunHrs:0, supHrs:1, ntroHrs:0 },
-  { wbs:"4.6",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Scenario & stress-test the integrated model (sensitivity, Monte Carlo >1000 runs)", start:"2027-03-19", dur:14, pred:"4.1,4.2,4.3,4.4,4.5", nick:"R", elias:"A", malhar:"R", varun:"R", sup:"C", ntro:"", nickHrs:14, eliasHrs:28, malharHrs:19, varunHrs:18, supHrs:1, ntroHrs:0 },
-  { wbs:"4.7",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Validate infrastructure assumptions & tool outputs against industry input", start:"2027-03-14", dur:19, pred:"4.2,4.3,2.9", nick:"A", elias:"C", malhar:"I", varun:"C", sup:"C", ntro:"C", nickHrs:28, eliasHrs:5, malharHrs:1, varunHrs:4, supHrs:1, ntroHrs:1 },
-  { wbs:"4.8",  group:false, ms:false, ws:"GEN", status:"Not Started", name:"Verify results against real-world cases & document findings", start:"2027-04-02", dur:7, pred:"4.6", nick:"R", elias:"R", malhar:"R", varun:"A", sup:"C", ntro:"C", nickHrs:7, eliasHrs:10, malharHrs:9, varunHrs:13, supHrs:1, ntroHrs:0 },
-  { wbs:"M7",   group:false, ms:true, ws:"GEN", status:"Not Started", name:"Integration, validation & scenario testing complete", start:"2027-04-09", dur:0, pred:"4.7,4.8", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"C", nickHrs:3, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:2, ntroHrs:0 },
-  { wbs:"5",    group:true, ms:false, ws:"GEN", status:"",            name:"Report Drafting & Review", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
-  { wbs:"5.1",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Finalise Excel tool & user documentation", start:"2027-04-09", dur:7, pred:"M7", nick:"R", elias:"A", malhar:"R", varun:"R", sup:"I", ntro:"", nickHrs:7, eliasHrs:14, malharHrs:9, varunHrs:9, supHrs:1, ntroHrs:0 },
-  { wbs:"5.2",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Write infrastructure & technology section", start:"2027-04-09", dur:19, pred:"M7", nick:"A", elias:"I", malhar:"I", varun:"I", sup:"C", ntro:"", nickHrs:28, eliasHrs:1, malharHrs:1, varunHrs:1, supHrs:1, ntroHrs:0 },
-  { wbs:"5.3",  group:false, ms:false, ws:"FRT", status:"Not Started", name:"Document freight profile, segmentation methodology, route scenarios & findings", start:"2027-04-09", dur:19, pred:"M7", nick:"C", elias:"I", malhar:"I", varun:"A", sup:"C", ntro:"", nickHrs:3, eliasHrs:1, malharHrs:1, varunHrs:34, supHrs:1, ntroHrs:0 },
-  { wbs:"5.4",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Write economic methodology, findings, assumptions & limitations", start:"2027-04-16", dur:14, pred:"5.1", nick:"I", elias:"A", malhar:"I", varun:"C", sup:"C", ntro:"", nickHrs:0, eliasHrs:28, malharHrs:1, varunHrs:3, supHrs:1, ntroHrs:0 },
-  { wbs:"5.5",  group:false, ms:false, ws:"POL", status:"Not Started", name:"Detail regulatory framework & backend references for the tool", start:"2027-04-09", dur:19, pred:"M7", nick:"I", elias:"I", malhar:"A", varun:"I", sup:"C", ntro:"", nickHrs:1, eliasHrs:1, malharHrs:37, varunHrs:1, supHrs:1, ntroHrs:0 },
-  { wbs:"5.6",  group:false, ms:false, ws:"GEN", status:"Not Started", name:"Compile & edit draft final report", start:"2027-04-30", dur:7, pred:"5.2,5.3,5.4,5.5", nick:"A", elias:"R", malhar:"R", varun:"R", sup:"C", ntro:"I", nickHrs:10, eliasHrs:10, malharHrs:9, varunHrs:9, supHrs:1, ntroHrs:0 },
-  { wbs:"M8",   group:false, ms:true, ws:"GEN", status:"Not Started", name:"Draft final report shared with supervisors", start:"2027-05-07", dur:0, pred:"5.6", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"I", nickHrs:3, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:2, ntroHrs:0 },
-  { wbs:"6",    group:true, ms:false, ws:"GEN", status:"",            name:"Final Submission & Presentation", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
-  { wbs:"6.1",  group:false, ms:false, ws:"GEN", status:"Not Started", name:"Address supervisor feedback & finalise report", start:"2027-05-07", dur:21, pred:"M8", nick:"R", elias:"R", malhar:"R", varun:"A", sup:"C", ntro:"", nickHrs:22, eliasHrs:30, malharHrs:28, varunHrs:38, supHrs:1, ntroHrs:0 },
-  { wbs:"6.2",  group:false, ms:false, ws:"FRT", status:"Not Started", name:"Finalise freight workstream outputs & Excel tool release", start:"2027-05-07", dur:11, pred:"M8", nick:"R", elias:"C", malhar:"C", varun:"A", sup:"I", ntro:"I", nickHrs:11, eliasHrs:3, malharHrs:3, varunHrs:20, supHrs:0, ntroHrs:0 },
-  { wbs:"6.3",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Prepare layman & technical presentations incl. Endeavour and NTRO versions", start:"2027-05-07", dur:18, pred:"M8", nick:"R", elias:"A", malhar:"R", varun:"R", sup:"C", ntro:"C", nickHrs:19, eliasHrs:37, malharHrs:24, varunHrs:23, supHrs:1, ntroHrs:0 },
-  { wbs:"6.4",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Prepare infrastructure & technology summary for final presentation", start:"2027-05-07", dur:11, pred:"M8", nick:"A", elias:"I", malhar:"I", varun:"I", sup:"", ntro:"", nickHrs:16, eliasHrs:1, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
-  { wbs:"6.5",  group:false, ms:false, ws:"POL", status:"Not Started", name:"Prepare policy & regulatory structure briefing for NTRO", start:"2027-05-07", dur:11, pred:"M8", nick:"I", elias:"I", malhar:"A", varun:"I", sup:"", ntro:"C", nickHrs:0, eliasHrs:1, malharHrs:21, varunHrs:0, supHrs:0, ntroHrs:0 },
-  { wbs:"M9",   group:false, ms:true, ws:"GEN", status:"Not Started", name:"Final report, Excel tool & Endeavour presentation submitted", start:"2027-05-28", dur:0, pred:"6.1,6.2,6.3,6.4,6.5", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"I", nickHrs:3, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:2, ntroHrs:0 },
-  { wbs:"6.6",  group:false, ms:false, ws:"GEN", status:"Not Started", name:"Present final model & report to NTRO", start:"2027-05-28", dur:14, pred:"M9", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"I", ntro:"X", nickHrs:14, eliasHrs:20, malharHrs:19, varunHrs:18, supHrs:0, ntroHrs:1 },
-  { wbs:"6.7",  group:false, ms:false, ws:"GEN", status:"Not Started", name:"Prepare for oral examination", start:"2027-05-28", dur:18, pred:"M9", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"C", ntro:"", nickHrs:19, eliasHrs:26, malharHrs:24, varunHrs:23, supHrs:1, ntroHrs:0 },
-  { wbs:"M10",  group:false, ms:true, ws:"GEN", status:"Not Started", name:"Oral examination completed", start:"2027-06-15", dur:0, pred:"6.7", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"I", nickHrs:3, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:2, ntroHrs:0 }
+  { wbs:"A",    group:true, ms:false, ws:"GEN", status:"",            name:"Subject Assessments (ENGR90037)", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
+  { wbs:"A1",   group:false, ms:true, ws:"GEN", status:"Complete",    name:"Assignment 1: Baseline Plan (5%)", start:"2026-08-28", dur:0, pred:"1.1", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"I", nickHrs:10, eliasHrs:10, malharHrs:10, varunHrs:10, supHrs:2, ntroHrs:0 },
+  { wbs:"A2",   group:false, ms:false, ws:"GEN", status:"In Progress", name:"Assignment 2: individual (15%, Wk 8-12)", start:"2026-09-14", dur:42, pred:"", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"", nickHrs:10, eliasHrs:10, malharHrs:10, varunHrs:10, supHrs:2, ntroHrs:0 },
+  { wbs:"A3",   group:false, ms:false, ws:"GEN", status:"Not Started", name:"Oral assessment (10%, exam period)", start:"2026-11-02", dur:19, pred:"", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"", nickHrs:6, eliasHrs:6, malharHrs:6, varunHrs:6, supHrs:2, ntroHrs:0 },
+  { wbs:"A4",   group:false, ms:false, ws:"GEN", status:"Not Started", name:"Lay-audience presentation (10%, Wk 6-12)", start:"2027-04-12", dur:47, pred:"", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"", nickHrs:15, eliasHrs:15, malharHrs:15, varunHrs:15, supHrs:2, ntroHrs:0 },
+  { wbs:"1",    group:true, ms:false, ws:"GEN", status:"",            name:"Project Definition", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
+  { wbs:"1.1",  group:false, ms:false, ws:"GEN", status:"Complete",    name:"Define project scope & deliverables", start:"2026-07-27", dur:18, pred:"", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"C", ntro:"C", nickHrs:14, eliasHrs:19, malharHrs:16, varunHrs:16, supHrs:1, ntroHrs:1 },
+  { wbs:"1.2",  group:false, ms:false, ws:"GEN", status:"Complete",    name:"Review government & industry literature", start:"2026-07-27", dur:45, pred:"", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"I", ntro:"C", nickHrs:35, eliasHrs:48, malharHrs:39, varunHrs:40, supHrs:0, ntroHrs:1 },
+  { wbs:"1.3",  group:false, ms:false, ws:"INF", status:"Complete",    name:"Scope infrastructure & technology", start:"2026-08-14", dur:27, pred:"1.1", nick:"A", elias:"I", malhar:"I", varun:"C", sup:"C", ntro:"", nickHrs:30, eliasHrs:1, malharHrs:1, varunHrs:4, supHrs:1, ntroHrs:0 },
+  { wbs:"1.4",  group:false, ms:false, ws:"POL", status:"Complete",    name:"Map regulatory landscape", start:"2026-08-14", dur:27, pred:"1.1", nick:"I", elias:"I", malhar:"A", varun:"C", sup:"C", ntro:"", nickHrs:1, eliasHrs:1, malharHrs:33, varunHrs:4, supHrs:1, ntroHrs:0 },
+  { wbs:"1.5",  group:false, ms:false, ws:"FRT", status:"Complete",    name:"Define segmentation method", start:"2026-08-14", dur:27, pred:"1.1", nick:"R", elias:"C", malhar:"C", varun:"A", sup:"C", ntro:"C", nickHrs:21, eliasHrs:5, malharHrs:4, varunHrs:35, supHrs:1, ntroHrs:1 },
+  { wbs:"1.6",  group:false, ms:false, ws:"ECO", status:"Complete",    name:"Define economic metrics (TCO, NPV, payback)", start:"2026-08-14", dur:14, pred:"1.1", nick:"I", elias:"A", malhar:"C", varun:"C", sup:"C", ntro:"", nickHrs:0, eliasHrs:21, malharHrs:2, varunHrs:2, supHrs:1, ntroHrs:0 },
+  { wbs:"1.7",  group:false, ms:false, ws:"ECO", status:"Complete",    name:"Design Excel model architecture", start:"2026-08-28", dur:13, pred:"1.6", nick:"C", elias:"A", malhar:"C", varun:"C", sup:"C", ntro:"", nickHrs:2, eliasHrs:20, malharHrs:2, varunHrs:2, supHrs:1, ntroHrs:0 },
+  { wbs:"M1",   group:false, ms:true, ws:"GEN", status:"Complete",    name:"Project definition complete", start:"2026-09-10", dur:0, pred:"1.2,1.3,1.4,1.5,1.7", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"C", nickHrs:2, eliasHrs:3, malharHrs:3, varunHrs:3, supHrs:2, ntroHrs:1 },
+  { wbs:"2",    group:true, ms:false, ws:"GEN", status:"",            name:"Segmentation & Feasibility Framework", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
+  { wbs:"2.1",  group:false, ms:false, ws:"FRT", status:"Complete",    name:"Build preview PoC (3 archetypes)", start:"2026-09-03", dur:15, pred:"1.6", nick:"R", elias:"R", malhar:"C", varun:"A", sup:"C", ntro:"I", nickHrs:12, eliasHrs:16, malharHrs:2, varunHrs:19, supHrs:1, ntroHrs:0 },
+  { wbs:"2.2",  group:false, ms:false, ws:"INF", status:"Complete",    name:"Review BEV options by duty class", start:"2026-09-10", dur:22, pred:"M1", nick:"A", elias:"C", malhar:"I", varun:"C", sup:"I", ntro:"C", nickHrs:24, eliasHrs:4, malharHrs:1, varunHrs:3, supHrs:0, ntroHrs:1 },
+  { wbs:"2.3",  group:false, ms:false, ws:"INF", status:"In Progress", name:"Define charging & grid requirements", start:"2026-10-02", dur:21, pred:"2.2", nick:"A", elias:"C", malhar:"C", varun:"I", sup:"C", ntro:"C", nickHrs:23, eliasHrs:4, malharHrs:3, varunHrs:1, supHrs:1, ntroHrs:1 },
+  { wbs:"2.4",  group:false, ms:false, ws:"FRT", status:"In Progress", name:"Build freight profile & route evidence", start:"2026-09-10", dur:43, pred:"M1", nick:"R", elias:"C", malhar:"I", varun:"A", sup:"C", ntro:"C", nickHrs:33, eliasHrs:8, malharHrs:1, varunHrs:55, supHrs:1, ntroHrs:1 },
+  { wbs:"2.5",  group:false, ms:false, ws:"POL", status:"In Progress", name:"Build policy bank", start:"2026-09-10", dur:43, pred:"M1", nick:"I", elias:"C", malhar:"A", varun:"C", sup:"C", ntro:"", nickHrs:1, eliasHrs:8, malharHrs:53, varunHrs:7, supHrs:1, ntroHrs:0 },
+  { wbs:"2.6",  group:false, ms:false, ws:"POL", status:"In Progress", name:"Review federal policy reports", start:"2026-09-10", dur:43, pred:"M1", nick:"I", elias:"I", malhar:"A", varun:"I", sup:"C", ntro:"C", nickHrs:1, eliasHrs:1, malharHrs:53, varunHrs:1, supHrs:1, ntroHrs:1 },
+  { wbs:"2.7",  group:false, ms:false, ws:"ECO", status:"In Progress", name:"Define five-lens feasibility scoring", start:"2026-09-18", dur:35, pred:"2.1", nick:"C", elias:"A", malhar:"C", varun:"C", sup:"C", ntro:"C", nickHrs:5, eliasHrs:53, malharHrs:5, varunHrs:5, supHrs:1, ntroHrs:1 },
+  { wbs:"M2",   group:false, ms:true, ws:"GEN", status:"Not Started", name:"Segmentation & feasibility framework complete", start:"2026-10-23", dur:0, pred:"2.3,2.4,2.5,2.6,2.7", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"C", nickHrs:2, eliasHrs:3, malharHrs:3, varunHrs:3, supHrs:2, ntroHrs:1 },
+  { wbs:"3",    group:true, ms:false, ws:"GEN", status:"",            name:"Case Studies & Data Collection", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
+  { wbs:"3.1",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Build freight cost profiles", start:"2026-10-23", dur:21, pred:"M2", nick:"C", elias:"A", malhar:"C", varun:"R", sup:"C", ntro:"", nickHrs:3, eliasHrs:32, malharHrs:3, varunHrs:19, supHrs:1, ntroHrs:0 },
+  { wbs:"3.2",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Integrate case-study cost data", start:"2026-11-13", dur:35, pred:"3.1", nick:"C", elias:"A", malhar:"C", varun:"R", sup:"C", ntro:"C", nickHrs:5, eliasHrs:53, malharHrs:5, varunHrs:31, supHrs:1, ntroHrs:1 },
+  { wbs:"3.3",  group:false, ms:false, ws:"FRT", status:"Not Started", name:"Finalise case-study archetypes", start:"2026-10-23", dur:56, pred:"M2", nick:"R", elias:"C", malhar:"C", varun:"A", sup:"C", ntro:"C", nickHrs:43, eliasHrs:10, malharHrs:8, varunHrs:72, supHrs:1, ntroHrs:1 },
+  { wbs:"M3",   group:false, ms:true, ws:"INF", status:"Not Started", name:"All Energy Australia (28-29 Oct)", start:"2026-10-28", dur:0, pred:"M2", nick:"A", elias:"R", malhar:"R", varun:"R", sup:"I", ntro:"I", nickHrs:3, eliasHrs:3, malharHrs:3, varunHrs:3, supHrs:0, ntroHrs:0 },
+  { wbs:"3.4",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Engage industry (Linfox, NTRO, conference)", start:"2026-10-28", dur:51, pred:"M3", nick:"A", elias:"C", malhar:"I", varun:"C", sup:"I", ntro:"C", nickHrs:56, eliasHrs:9, malharHrs:1, varunHrs:8, supHrs:0, ntroHrs:1 },
+  { wbs:"3.5",  group:false, ms:false, ws:"POL", status:"Not Started", name:"Design policy priority setup", start:"2026-10-23", dur:56, pred:"M2", nick:"I", elias:"C", malhar:"A", varun:"I", sup:"C", ntro:"", nickHrs:1, eliasHrs:10, malharHrs:69, varunHrs:1, supHrs:1, ntroHrs:0 },
+  { wbs:"M4",   group:false, ms:true, ws:"GEN", status:"Not Started", name:"Case studies & data collection complete", start:"2026-12-18", dur:0, pred:"3.2,3.3,3.4,3.5", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"C", nickHrs:2, eliasHrs:3, malharHrs:3, varunHrs:3, supHrs:1, ntroHrs:1 },
+  { wbs:"4",    group:true, ms:false, ws:"GEN", status:"",            name:"Prototype Model", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
+  { wbs:"4.1",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Build infrastructure inputs (DNSP, charging, vehicles)", start:"2026-12-18", dur:35, pred:"M4", nick:"A", elias:"C", malhar:"I", varun:"C", sup:"C", ntro:"", nickHrs:38, eliasHrs:6, malharHrs:1, varunHrs:5, supHrs:1, ntroHrs:0 },
+  { wbs:"4.2",  group:false, ms:false, ws:"INF", status:"In Progress", name:"Connect Google Routes & Open Charge Map APIs", start:"2027-01-22", dur:37, pred:"4.1", nick:"A", elias:"I", malhar:"I", varun:"C", sup:"", ntro:"", nickHrs:41, eliasHrs:1, malharHrs:1, varunHrs:6, supHrs:0, ntroHrs:0 },
+  { wbs:"4.3",  group:false, ms:false, ws:"FRT", status:"Not Started", name:"Build segmentation & duty-cycle inputs", start:"2026-12-18", dur:35, pred:"M4", nick:"R", elias:"C", malhar:"I", varun:"A", sup:"C", ntro:"C", nickHrs:27, eliasHrs:6, malharHrs:1, varunHrs:45, supHrs:1, ntroHrs:1 },
+  { wbs:"4.4",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Build TCO/NPV models", start:"2027-01-22", dur:21, pred:"4.3", nick:"C", elias:"A", malhar:"C", varun:"R", sup:"C", ntro:"", nickHrs:3, eliasHrs:32, malharHrs:3, varunHrs:19, supHrs:1, ntroHrs:0 },
+  { wbs:"4.5",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Run Monte Carlo & assemble prototype", start:"2027-02-12", dur:16, pred:"4.1,4.4", nick:"R", elias:"A", malhar:"R", varun:"R", sup:"C", ntro:"", nickHrs:12, eliasHrs:24, malharHrs:14, varunHrs:14, supHrs:1, ntroHrs:0 },
+  { wbs:"4.6",  group:false, ms:false, ws:"POL", status:"Not Started", name:"Map policies to feasibility scores", start:"2026-12-18", dur:72, pred:"M4", nick:"I", elias:"C", malhar:"A", varun:"I", sup:"C", ntro:"", nickHrs:2, eliasHrs:13, malharHrs:89, varunHrs:2, supHrs:1, ntroHrs:0 },
+  { wbs:"M5",   group:false, ms:true, ws:"GEN", status:"Not Started", name:"Prototype model complete", start:"2027-02-28", dur:0, pred:"4.2,4.5,4.6", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"I", nickHrs:2, eliasHrs:3, malharHrs:3, varunHrs:3, supHrs:1, ntroHrs:0 },
+  { wbs:"5",    group:true, ms:false, ws:"GEN", status:"",            name:"Integration & Validation", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
+  { wbs:"5.1",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Combine scores into feasibility metric", start:"2027-02-28", dur:19, pred:"M5", nick:"C", elias:"A", malhar:"C", varun:"C", sup:"C", ntro:"", nickHrs:3, eliasHrs:29, malharHrs:3, varunHrs:3, supHrs:1, ntroHrs:0 },
+  { wbs:"5.2",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Integrate infrastructure & API outputs", start:"2027-02-28", dur:19, pred:"M5", nick:"A", elias:"C", malhar:"I", varun:"C", sup:"", ntro:"", nickHrs:21, eliasHrs:4, malharHrs:0, varunHrs:3, supHrs:0, ntroHrs:0 },
+  { wbs:"5.3",  group:false, ms:false, ws:"FRT", status:"Not Started", name:"Integrate freight segments & duty cycles", start:"2027-02-28", dur:19, pred:"M5", nick:"C", elias:"C", malhar:"I", varun:"A", sup:"", ntro:"C", nickHrs:3, eliasHrs:3, malharHrs:0, varunHrs:24, supHrs:0, ntroHrs:0 },
+  { wbs:"5.4",  group:false, ms:false, ws:"POL", status:"Not Started", name:"Integrate policy gate system", start:"2027-02-28", dur:19, pred:"M5", nick:"I", elias:"C", malhar:"A", varun:"I", sup:"C", ntro:"", nickHrs:0, eliasHrs:3, malharHrs:24, varunHrs:0, supHrs:1, ntroHrs:0 },
+  { wbs:"5.5",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Stress-test model (sensitivity, Monte Carlo)", start:"2027-03-19", dur:21, pred:"5.1,5.2,5.3,5.4", nick:"R", elias:"A", malhar:"R", varun:"R", sup:"C", ntro:"", nickHrs:16, eliasHrs:32, malharHrs:18, varunHrs:19, supHrs:1, ntroHrs:0 },
+  { wbs:"5.6",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Validate infrastructure outputs with industry", start:"2027-03-19", dur:21, pred:"5.2,3.4", nick:"A", elias:"C", malhar:"I", varun:"C", sup:"C", ntro:"C", nickHrs:23, eliasHrs:4, malharHrs:1, varunHrs:3, supHrs:1, ntroHrs:0 },
+  { wbs:"5.7",  group:false, ms:false, ws:"FRT", status:"Not Started", name:"Verify results against real cases", start:"2027-03-19", dur:21, pred:"5.3", nick:"R", elias:"R", malhar:"R", varun:"A", sup:"C", ntro:"C", nickHrs:16, eliasHrs:22, malharHrs:18, varunHrs:27, supHrs:1, ntroHrs:0 },
+  { wbs:"5.8",  group:false, ms:false, ws:"POL", status:"Not Started", name:"Final regulatory review", start:"2027-03-19", dur:21, pred:"5.4", nick:"I", elias:"I", malhar:"A", varun:"I", sup:"C", ntro:"C", nickHrs:1, eliasHrs:1, malharHrs:26, varunHrs:1, supHrs:1, ntroHrs:0 },
+  { wbs:"M6",   group:false, ms:true, ws:"GEN", status:"Not Started", name:"Model validated", start:"2027-04-09", dur:0, pred:"5.5,5.6,5.7,5.8", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"C", nickHrs:2, eliasHrs:3, malharHrs:3, varunHrs:3, supHrs:1, ntroHrs:0 },
+  { wbs:"6",    group:true, ms:false, ws:"GEN", status:"",            name:"Report Drafting", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
+  { wbs:"6.1",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Document Excel tool", start:"2027-04-09", dur:7, pred:"M6", nick:"R", elias:"A", malhar:"R", varun:"R", sup:"I", ntro:"", nickHrs:5, eliasHrs:11, malharHrs:6, varunHrs:6, supHrs:0, ntroHrs:0 },
+  { wbs:"6.2",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Write infrastructure section", start:"2027-04-09", dur:21, pred:"M6", nick:"A", elias:"I", malhar:"I", varun:"I", sup:"C", ntro:"", nickHrs:23, eliasHrs:1, malharHrs:1, varunHrs:0, supHrs:1, ntroHrs:0 },
+  { wbs:"6.3",  group:false, ms:false, ws:"FRT", status:"Not Started", name:"Write freight & segmentation section", start:"2027-04-09", dur:21, pred:"M6", nick:"C", elias:"I", malhar:"I", varun:"A", sup:"C", ntro:"", nickHrs:3, eliasHrs:1, malharHrs:0, varunHrs:27, supHrs:1, ntroHrs:0 },
+  { wbs:"6.4",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Write economics section", start:"2027-04-16", dur:14, pred:"6.1", nick:"I", elias:"A", malhar:"I", varun:"C", sup:"C", ntro:"", nickHrs:0, eliasHrs:21, malharHrs:0, varunHrs:2, supHrs:1, ntroHrs:0 },
+  { wbs:"6.5",  group:false, ms:false, ws:"POL", status:"Not Started", name:"Write regulatory section", start:"2027-04-09", dur:21, pred:"M6", nick:"I", elias:"I", malhar:"A", varun:"I", sup:"C", ntro:"", nickHrs:0, eliasHrs:1, malharHrs:26, varunHrs:0, supHrs:1, ntroHrs:0 },
+  { wbs:"6.6",  group:false, ms:false, ws:"GEN", status:"Not Started", name:"Compile & edit draft report", start:"2027-04-30", dur:7, pred:"6.2,6.3,6.4,6.5", nick:"A", elias:"R", malhar:"R", varun:"R", sup:"C", ntro:"I", nickHrs:8, eliasHrs:7, malharHrs:6, varunHrs:6, supHrs:1, ntroHrs:0 },
+  { wbs:"M7",   group:false, ms:true, ws:"GEN", status:"Not Started", name:"Draft report to supervisors", start:"2027-05-07", dur:0, pred:"6.6", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"I", nickHrs:2, eliasHrs:3, malharHrs:3, varunHrs:3, supHrs:1, ntroHrs:0 },
+  { wbs:"7",    group:true, ms:false, ws:"GEN", status:"",            name:"Final Submission & Presentations", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
+  { wbs:"7.1",  group:false, ms:false, ws:"GEN", status:"Not Started", name:"Finalise report from feedback", start:"2027-05-07", dur:21, pred:"M7", nick:"R", elias:"R", malhar:"A", varun:"R", sup:"C", ntro:"", nickHrs:16, eliasHrs:22, malharHrs:26, varunHrs:19, supHrs:1, ntroHrs:0 },
+  { wbs:"7.2",  group:false, ms:false, ws:"FRT", status:"Not Started", name:"Finalise freight outputs & tool release", start:"2027-05-07", dur:21, pred:"M7", nick:"R", elias:"C", malhar:"C", varun:"A", sup:"I", ntro:"I", nickHrs:16, eliasHrs:4, malharHrs:3, varunHrs:27, supHrs:0, ntroHrs:0 },
+  { wbs:"7.3",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Prepare technical & Endeavour presentations", start:"2027-05-07", dur:21, pred:"M7", nick:"R", elias:"A", malhar:"R", varun:"R", sup:"C", ntro:"C", nickHrs:16, eliasHrs:32, malharHrs:18, varunHrs:19, supHrs:1, ntroHrs:0 },
+  { wbs:"7.4",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Prepare infrastructure presentation", start:"2027-05-07", dur:21, pred:"M7", nick:"A", elias:"I", malhar:"I", varun:"I", sup:"", ntro:"", nickHrs:23, eliasHrs:1, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
+  { wbs:"7.5",  group:false, ms:false, ws:"POL", status:"Not Started", name:"Prepare NTRO policy briefing", start:"2027-05-07", dur:21, pred:"M7", nick:"I", elias:"I", malhar:"A", varun:"I", sup:"", ntro:"C", nickHrs:0, eliasHrs:1, malharHrs:26, varunHrs:0, supHrs:0, ntroHrs:0 },
+  { wbs:"M8",   group:false, ms:true, ws:"GEN", status:"Not Started", name:"Final report & tool submitted (30%, Wk 12)", start:"2027-05-28", dur:0, pred:"7.1,7.2,7.3,7.4,7.5", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"I", nickHrs:2, eliasHrs:3, malharHrs:3, varunHrs:3, supHrs:1, ntroHrs:0 },
+  { wbs:"7.6",  group:false, ms:false, ws:"GEN", status:"Not Started", name:"Prepare for oral exam", start:"2027-05-28", dur:18, pred:"M8", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"C", ntro:"", nickHrs:14, eliasHrs:19, malharHrs:16, varunHrs:16, supHrs:1, ntroHrs:0 },
+  { wbs:"M9",   group:false, ms:true, ws:"GEN", status:"Not Started", name:"Oral exam (30%, exam period)", start:"2027-06-15", dur:0, pred:"7.6", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"I", nickHrs:2, eliasHrs:3, malharHrs:3, varunHrs:3, supHrs:1, ntroHrs:0 },
+  { wbs:"7.7",  group:false, ms:false, ws:"GEN", status:"Not Started", name:"Prepare final NTRO presentation", start:"2027-06-15", dur:24, pred:"M9", nick:"R", elias:"R", malhar:"R", varun:"A", sup:"C", ntro:"C", nickHrs:18, eliasHrs:25, malharHrs:21, varunHrs:31, supHrs:1, ntroHrs:0 },
+  { wbs:"M10",  group:false, ms:true, ws:"GEN", status:"Not Started", name:"Final presentation to NTRO", start:"2027-07-09", dur:0, pred:"7.7", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"I", ntro:"X", nickHrs:2, eliasHrs:3, malharHrs:3, varunHrs:3, supHrs:0, ntroHrs:1 }
 ];
 
 // ╔══════════════════════════════════════════════════════════════════════════╗
@@ -444,7 +483,7 @@ function taskCost(t) { return PEOPLE.reduce((s,p) => s + (t[p.k+'Hrs']||0) * p.r
 const money = n => '$' + n.toLocaleString('en-AU');
 
 function bnds() {
-  let mn = pd("2026-07-20"), mx = pd("2027-06-28");
+  let mn = pd("2026-07-20"), mx = pd("2027-07-18");
   tasks.forEach(t => { if (!t.start) return; const s = pd(t.start), e = addD(s, t.dur||0); if (s < mn) mn = s; if (e > mx) mx = e; });
   while (mn.getDay() !== 1) mn = addD(mn,-1);
   while (mx.getDay() !== 0) mx = addD(mx,1);
@@ -485,7 +524,7 @@ function renderL() {
     const ws = WS[t.ws] || WS.GEN;
     const dd  = t.ms ? '◆ 0d' : t.dur + 'd';
     const ind = (t.group || t.ms) ? '6px' : '14px';
-    const fl = t.group ? '' : (t.cp ? '0d' : t._fl + 'd');
+    const fl = t.group ? '' : (t.cp ? '0d' : (t._hasSucc ? t._fl + 'd' : '–'));
     const roles = PEOPLE.map(p => `<td class="rc">${t.group ? '' : rsel(t._id, p.k, t[p.k])}</td>`).join('');
     const hrs = PEOPLE.map((p,i) => `<td class="dc hc ${t.group?'':'ed'}" style="${i===0?'border-left:2px solid var(--border);':''}${t.group?'color:var(--text)':''}" ${t.group?'':`onclick="ied(this,${t._id},'${p.k}Hrs')"`}>${t[p.k+'Hrs']||0}</td>`).join('');
     const stat = t.group ? '' : `<select class="ss ${statusCls(t)}" onchange="sf(${t._id},'status',this.value);render()" title="${statusCls(t)==='late'?'Past its finish date and not complete':''}">${STATUSES.map(s => `<option ${s===t.status?'selected':''}>${s}</option>`).join('')}</select>`;
@@ -650,8 +689,14 @@ function renderCPBar() {
   const el = document.getElementById('cpbar');
   if (!cp.length) { el.innerHTML = '<span class="cplab">Critical path</span><span class="cpmeta">none found, check predecessors</span>'; return; }
   const s = cp[0].start, e = cp.reduce((m,t) => fin(t) > m ? fin(t) : m, '0000');
-  el.innerHTML = `<span class="cplab">Critical path</span><span class="cpmeta">${cp.length} items · ${fmt(s)} → ${fmt(e)} · any slip here delays the oral exam</span>` +
-    cp.map(t => `<span class="chip ${t.ms?'m':''}" title="${esc(t.name)}\n${fmt(t.start)}${t.ms?'':' → '+fmt(fin(t))}">${t.ms?'◆ ':''}${esc(t.wbs)}</span>`).join('<span class="arrow">▸</span>');
+  // when most of the plan is critical, show the milestone chain only so the banner stays readable
+  const tot = tasks.filter(t => !t.group && (t._hasSucc || t.cp)).length;
+  const show = cp.length > 30 ? cp.filter(t => t.ms) : cp;
+  const meta = cp.length > 30
+    ? `${cp.length} of ${tot} scheduled items critical (phases fully aligned, zero contingency) · ${fmt(s)} → ${fmt(e)} · milestone chain:`
+    : `${cp.length} items · ${fmt(s)} → ${fmt(e)} · any slip here delays project completion`;
+  el.innerHTML = `<span class="cplab">Critical path</span><span class="cpmeta">${meta}</span>` +
+    show.map(t => `<span class="chip ${t.ms?'m':''}" title="${esc(t.name)}\n${fmt(t.start)}${t.ms?'':' → '+fmt(fin(t))}">${t.ms?'◆ ':''}${esc(t.wbs)}</span>`).join('<span class="arrow">▸</span>');
 }
 
 function sf(id, f, v) {
@@ -819,6 +864,51 @@ function renderDeps() {
     });
   });
   document.getElementById('gbody').appendChild(svg);
+}
+
+const PCOL = { p1:'#2dd4bf', p2:'#4ade80', p3:'#a78bfa', p4:'#60a5fa', p5:'#f59e0b', p6:'#f472b6' };
+function openSummary() { renderSummary(); document.getElementById('summary').classList.add('open'); }
+function renderSummary() {
+  const real = tasks.filter(t => !t.group);
+  const ROLES = ['R','A','C','I','X'];
+  const cnt = (p,r) => real.filter(t => t[p.k] === r).length;
+  const hrs = p => real.reduce((a,t) => a + (t[p.k+'Hrs']||0), 0);
+  const cpHrs = p => real.filter(t => t.cp).reduce((a,t) => a + (t[p.k+'Hrs']||0), 0);
+  const maxH = Math.max(...PEOPLE.map(hrs), 1);
+  const personnel = PEOPLE.reduce((a,p) => a + hrs(p)*p.rate, 0);
+  const equip = EQUIPMENT.reduce((a,e) => a + e.cost, 0);
+
+  // 1. RACIX matrix per person
+  let h = `<div class="sumh">RACIX allocation (task count per role)</div>
+  <table class="sumt"><thead><tr><th>Person</th>${ROLES.map(r=>`<th><span class="badge ${r}">${r}</span></th>`).join('')}<th>Hours</th><th>On crit. path</th><th>Rate</th><th>Cost</th></tr></thead><tbody>`;
+  PEOPLE.forEach(p => {
+    const H = hrs(p);
+    h += `<tr><td class="${p.cls}" title="${esc(p.full)}">${esc(p.n)}</td>${ROLES.map(r=>`<td class="num">${cnt(p,r)||'–'}</td>`).join('')}
+      <td><div class="barcell"><span class="num" style="width:34px;text-align:right">${H}</span><span class="hb" style="width:${Math.round(H/maxH*70)}px;background:${PCOL[p.cls]}"></span></div></td>
+      <td class="num">${cpHrs(p)} (${H?Math.round(cpHrs(p)/H*100):0}%)</td><td class="num">$${p.rate}/h</td><td class="num">${money(H*p.rate)}</td></tr>`;
+  });
+  h += `<tr class="tot"><td>Total personnel</td>${ROLES.map(r=>`<td class="num">${PEOPLE.reduce((a,p)=>a+cnt(p,r),0)}</td>`).join('')}<td class="num">${PEOPLE.reduce((a,p)=>a+hrs(p),0)}</td><td class="num">${PEOPLE.reduce((a,p)=>a+cpHrs(p),0)}</td><td></td><td class="num">${money(personnel)}</td></tr></tbody></table>`;
+
+  // 2. Accountability by workstream
+  h += `<div class="sumh">Accountable owner by workstream</div><table class="sumt"><thead><tr><th>Workstream</th><th>Tasks</th><th>Accountable (A)</th><th>Responsible (R)</th><th>Critical tasks</th><th>Cost</th></tr></thead><tbody>`;
+  Object.entries(WS).forEach(([k,w]) => {
+    const ts = real.filter(t => t.ws === k);
+    if (!ts.length) return;
+    const who = r => { const c = {}; ts.forEach(t => PEOPLE.forEach(p => { if (t[p.k]===r) c[p.n]=(c[p.n]||0)+1; })); return Object.entries(c).sort((a,b)=>b[1]-a[1]).map(([n,v])=>`${n} (${v})`).join(', ') || '–'; };
+    h += `<tr class="wsrow"><td><span class="wsd" style="background:${w.c};display:inline-block;margin-right:6px"></span>${w.n}</td><td class="num">${ts.length}</td><td>${who('A')}</td><td>${who('R')}</td><td class="num">${ts.filter(t=>t.cp).length}</td><td class="num">${money(ts.reduce((a,t)=>a+taskCost(t),0))}</td></tr>`;
+  });
+  h += `</tbody></table>`;
+
+  // 3. Budget roll-up
+  h += `<div class="sumh">Budgetary estimate</div><table class="sumt"><thead><tr><th>Item</th><th>Basis</th><th>Cost</th></tr></thead><tbody>`;
+  PEOPLE.forEach(p => { h += `<tr><td>${esc(p.n)}</td><td>${hrs(p)} h x $${p.rate}/h</td><td class="num">${money(hrs(p)*p.rate)}</td></tr>`; });
+  h += `<tr class="tot"><td>Personnel subtotal</td><td></td><td class="num">${money(personnel)}</td></tr>`;
+  EQUIPMENT.forEach(e => { h += `<tr><td>${esc(e.item)}</td><td>${esc(e.note)}</td><td class="num">${money(e.cost)}</td></tr>`; });
+  h += `<tr class="tot"><td>Equipment subtotal</td><td></td><td class="num">${money(equip)}</td></tr>
+        <tr class="tot"><td style="color:var(--i)">TOTAL ESTIMATED COST</td><td>Personnel + Equipment</td><td class="num" style="color:var(--i)">${money(personnel+equip)}</td></tr>
+        <tr><td>Faculty consumables allowance</td><td>Separate direct-purchasing budget, not included above</td><td class="num">${money(FACULTY_ALLOWANCE)}</td></tr></tbody></table>`;
+  h += `<div class="note">Charter check: the Charter lists UniMelb supervisor cost as $14,400, but 18 h x $200 x 3 supervisors = $10,800, which is what this chart uses (54 h). Update the Charter total from $306,090 to ${money(personnel+equip)} or change the supervisor hours here.</div>`;
+  document.getElementById('sumBody').innerHTML = h;
 }
 
 function render() {
