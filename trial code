@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Freight Electrification Gantt</title>
+
+<!-- ============================================================
+  DECARBONISING AUSTRALIAN ROAD FREIGHT  (MI-21-ZSHU-008)
+  Gantt + RACIX Chart  |  ENGR90037 Capstone 2026-27
+
+  HOW TO EDIT THIS FILE
+  ---------------------
+  All project data lives in the DATA SECTION below (search for
+  "DATA SECTION START"). Everything else is rendering code.
+
+  TASK FIELDS:
+    wbs      - unique WBS code, e.g. "2.5" or "M3" (used by pred)
+    group    - true = phase header row. Its dates and hours are
+               calculated from the tasks beneath it.
+    ms       - true = milestone (shown as a diamond, dur = 0)
+    ws       - workstream: "INF" Infrastructure & Technology,
+               "POL" Policy & Regulation, "FRT" Freight Profile &
+               Segmentation, "ECO" Economics & Modelling, "GEN" General
+    status   - "Complete", "In Progress", "Not Started", "On Hold"
+    name     - display name
+    start    - "YYYY-MM-DD"
+    dur      - duration in days (0 for milestones)
+    pred     - predecessor WBS codes, comma-separated e.g. "2.4,M3"
+    nick / elias / malhar / varun / sup / ntro
+             - RACIX role: "R", "A", "C", "I", "X", or ""
+    ...Hrs   - planned hours per person for that task
+
+  CRITICAL PATH
+    Calculated automatically from pred + start + dur (no manual flag).
+    Float = days a task can slip before it delays the final milestone.
+    Float 0 = critical. Drag a bar or edit a date and it recalculates.
+
+  RACIX ROLES:
+    R  Responsible  - does the work
+    A  Accountable  - workstream owner, single point of accountability
+    C  Consulted    - provides input before/during
+    I  Informed     - kept in the loop after decisions
+    X  Signoff      - approves / signs off the deliverable
+
+  RATES (from Project Charter): students $100/h, supervisors $200/h
+  ============================================================ -->
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+  :root {
+    --bg:#0c0e16; --surface2:#1a1f30; --border:#252d45;
+    --accent:#4f7cff; --accent2:#ff5e5e;
+    --text:#dde1f0; --text-muted:#6a7395;
+    --gantt-group:#8892b0; --critical:#ff9f43; --critical2:#ff6348;
+    --r:#ff6b6b; --a:#ffb347; --c:#4f7cff; --i:#36d9a0; --x:#c084fc;
+    --row-hover:rgba(79,124,255,0.05); --header-bg:#0e1120; --grid-line:#181e2e;
+    --row-h:32px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:12.5px;min-height:100vh;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:11px 18px;background:var(--header-bg);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:200;gap:12px;flex-wrap:wrap;}
+  .topbar-title{font-family:'Space Mono',monospace;font-size:12px;white-space:nowrap;}
+  .topbar-title span{color:var(--text-muted);font-size:11px;}
+  .toolbar{display:flex;gap:6px;flex-wrap:wrap;}
+  .btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 11px;border-radius:5px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:11.5px;transition:all .15s;white-space:nowrap;}
+  .btn:hover{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn.cpon{background:var(--critical);border-color:var(--critical);color:#1a0f00;font-weight:600;}
+  .btn.danger{background:#3a1a1a;border-color:var(--accent2);color:var(--accent2);}
+  .btn.danger:hover{background:var(--accent2);color:#fff;}
+  .legend{display:flex;gap:14px;padding:7px 18px;background:var(--header-bg);border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center;}
+  .li{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);}
+  .sep{width:1px;height:16px;background:var(--border);}
+  .badge{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;border-radius:4px;font-size:10px;font-weight:700;font-family:'Space Mono',monospace;}
+  .badge.R{background:rgba(255,107,107,.2);color:var(--r);}
+  .badge.A{background:rgba(255,179,71,.2);color:var(--a);}
+  .badge.C{background:rgba(79,124,255,.2);color:var(--c);}
+  .badge.I{background:rgba(54,217,160,.2);color:var(--i);}
+  .badge.X{background:rgba(192,132,252,.2);color:var(--x);}
+  .dleg{width:11px;height:11px;background:#111;transform:rotate(45deg);border:2.5px solid #dde1f0;display:inline-block;flex-shrink:0;}
+  .dleg.crit{border-color:var(--critical);}
+  .bleg{width:22px;height:10px;border-radius:3px;display:inline-block;}
+  .bleg.crit{background:linear-gradient(90deg,var(--critical),var(--critical2));box-shadow:0 0 0 1px #ffd2a6;}
+  .bleg.grp{background:var(--gantt-group);height:5px;margin:2.5px 0;}
+  .fleg{width:22px;height:0;border-top:2px dashed rgba(200,210,240,.45);display:inline-block;}
+
+  /* critical path banner */
+  .cpbar{display:flex;align-items:center;gap:8px;padding:7px 18px;background:#1a1208;border-bottom:1px solid #4a3010;overflow-x:auto;white-space:nowrap;}
+  .cpbar::-webkit-scrollbar{height:4px;} .cpbar::-webkit-scrollbar-thumb{background:#4a3010;}
+  .cplab{font-family:'Space Mono',monospace;font-size:10.5px;font-weight:700;color:var(--critical);text-transform:uppercase;letter-spacing:.06em;flex-shrink:0;}
+  .cpmeta{font-size:10.5px;color:#b98a5a;flex-shrink:0;margin-right:4px;}
+  .chip{font-family:'Space Mono',monospace;font-size:10px;padding:2px 6px;border-radius:3px;background:rgba(255,159,67,.14);color:#ffc48a;border:1px solid rgba(255,159,67,.3);flex-shrink:0;cursor:default;}
+  .chip.m{background:rgba(255,159,67,.3);color:#fff;border-color:var(--critical);}
+  .arrow{color:#7a5530;font-size:10px;flex-shrink:0;}
+
+  .main-wrapper{display:flex;overflow:hidden;height:calc(100vh - 128px);}
+  .left-panel{width:min(965px,62vw);flex-shrink:0;overflow-y:auto;overflow-x:auto;}
+  .resizer{width:5px;flex-shrink:0;background:var(--border);cursor:col-resize;transition:background .15s;position:relative;z-index:10;}
+  .resizer:hover,.resizer.dragging{background:var(--accent);}
+  .resizer::after{content:'';position:absolute;inset:-4px 0;}
+  .left-panel::-webkit-scrollbar{width:5px;height:6px;}
+  .left-panel::-webkit-scrollbar-thumb{background:var(--border);}
+  .right-panel{flex:1;overflow:auto;position:relative;}
+  .right-panel::-webkit-scrollbar{width:6px;height:6px;}
+  .right-panel::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+  #gantt-scroll{display:inline-block;min-width:100%;}
+  table{border-collapse:collapse;width:100%;}
+  th{background:var(--header-bg);color:var(--text-muted);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;padding:0 6px;height:46px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:50;}
+  td{padding:4px 6px;border-bottom:1px solid var(--grid-line);border-right:1px solid var(--grid-line);vertical-align:middle;white-space:nowrap;height:var(--row-h);}
+  tr:hover td{background:var(--row-hover);}
+  tr.group-row>td{background:rgba(136,146,176,.06);}
+  tr.group-row .tnv{font-weight:600;color:#c7cde6;text-transform:uppercase;font-size:11px;letter-spacing:.03em;}
+  tr.milestone-row .tnv{font-weight:700;color:#e8e8e8;font-size:11px;}
+  tr.crit-row>td:first-child{box-shadow:inset 3px 0 0 var(--critical);}
+  tr.crit-row .tnv{color:#ffd2a6;}
+  tfoot td{background:var(--header-bg);font-weight:700;position:sticky;bottom:0;border-top:1px solid var(--border);}
+  .rn{color:var(--text-muted);font-size:10px;font-family:'Space Mono',monospace;text-align:left;}
+  .tntd{max-width:225px;}
+  .tnw{display:flex;align-items:center;gap:6px;}
+  .wsd{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+  .tnv{max-width:205px;overflow:hidden;text-overflow:ellipsis;display:block;cursor:text;}
+  .tnv:focus{outline:1px solid var(--accent);border-radius:2px;padding:0 2px;}
+  .pc{max-width:64px;overflow:hidden;text-overflow:ellipsis;}
+  .dc,.dtc,.pc{font-family:'Space Mono',monospace;font-size:10.5px;color:var(--text-muted);text-align:center;}
+  .flt{font-family:'Space Mono',monospace;font-size:10.5px;text-align:center;color:var(--text-muted);}
+  .flt.z{color:#1a0f00;background:var(--critical)!important;font-weight:700;}
+  .ed{cursor:pointer;border-radius:3px;padding:1px 3px;transition:background .12s;}
+  .ed:hover{background:var(--surface2);color:var(--text);}
+  input.ci{background:var(--surface2);border:1px solid var(--accent);color:var(--text);font-family:'Space Mono',monospace;font-size:10.5px;border-radius:3px;padding:1px 4px;width:84px;outline:none;}
+  .rc{text-align:center;padding:2px 3px;}
+  .rs,.ss{appearance:none;background:transparent;border:none;height:22px;text-align:center;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;cursor:pointer;border-radius:3px;outline:none;transition:all .12s;color:var(--text);}
+  .rs{width:26px;}
+  .rs option,.ss option{background:#161b2b;color:var(--text);}
+  .rs:hover,.ss:hover{background:var(--surface2);}
+  .rs.R{color:var(--r);background:rgba(255,107,107,.14);}
+  .rs.A{color:var(--a);background:rgba(255,179,71,.14);}
+  .rs.C{color:var(--c);background:rgba(79,124,255,.14);}
+  .rs.I{color:var(--i);background:rgba(54,217,160,.14);}
+  .rs.X{color:var(--x);background:rgba(192,132,252,.14);}
+  .rs.e{color:var(--text-muted);}
+  .ss{font-family:'DM Sans',sans-serif;font-size:10.5px;font-weight:600;padding:0 4px;width:80px;}
+  .ss.Complete{color:#36d9a0;background:rgba(54,217,160,.12);}
+  .ss.InProgress{color:#7aa2ff;background:rgba(79,124,255,.14);}
+  .ss.NotStarted{color:var(--text-muted);}
+  .ss.OnHold{color:#ffb347;background:rgba(255,179,71,.12);}
+  .ss.late{color:#ff8f8f;background:rgba(255,94,94,.16);}
+  .p1{color:#2dd4bf!important;}.p2{color:#4ade80!important;}.p3{color:#a78bfa!important;}.p4{color:#60a5fa!important;}.p5{color:#f59e0b!important;}.p6{color:#f472b6!important;}
+  body.nohrs .hc{display:none;}
+  .gsw{position:sticky;top:0;z-index:40;background:var(--header-bg);}
+  .gm,.gw{display:flex;}
+  .mc{border-right:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--header-bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);padding:0 6px;display:flex;align-items:center;flex-shrink:0;height:24px;overflow:hidden;}
+  .wc{border-right:1px solid var(--grid-line);border-bottom:1px solid var(--border);background:var(--header-bg);font-size:9px;font-family:'Space Mono',monospace;color:var(--text-muted);padding:0 1px;display:flex;align-items:center;justify-content:center;flex-shrink:0;height:22px;}
+  .wc.tw{border-left:2px solid var(--accent2);color:var(--accent2);}
+  .gbody{position:relative;}
+  .gr{display:flex;height:var(--row-h);border-bottom:1px solid var(--grid-line);position:relative;align-items:center;transition:opacity .15s;}
+  .gr:hover{background:var(--row-hover);}
+  .gr.grow{background:rgba(136,146,176,.04);}
+  .gc{height:100%;border-right:1px solid var(--grid-line);flex-shrink:0;position:relative;}
+  .gc.tc{background:rgba(255,94,94,.022);}
+  .bar{position:absolute;border-radius:3px;display:flex;align-items:center;font-size:9px;font-weight:600;color:rgba(10,12,20,.85);overflow:hidden;padding-left:5px;cursor:grab;transition:filter .12s,transform .1s;white-space:nowrap;}
+  .bar:hover{filter:brightness(1.18);transform:scaleY(1.07);z-index:5;}
+  .bar.task{top:7px;height:18px;opacity:.6;}
+  .bar.grp{top:13px;height:6px;border-radius:2px;background:var(--gantt-group);cursor:default;opacity:.7;}
+    .bar.crit{top:6px;height:20px;opacity:1;background:linear-gradient(90deg,var(--critical),var(--critical2))!important;box-shadow:0 0 0 1px #ffd2a6,0 0 10px rgba(255,159,67,.45);color:#1a0f00;}
+  .slack{position:absolute;top:50%;height:0;border-top:2px dashed;opacity:.45;pointer-events:none;}
+  .md{position:absolute;width:14px;height:14px;background:#0a0c14;border:2.5px solid #dde1f0;transform:rotate(45deg);top:50%;margin-top:-7px;cursor:default;z-index:10;transition:border-color .15s,transform .15s;}
+  .md.crit{border-color:var(--critical);background:#3a2208;box-shadow:0 0 10px rgba(255,159,67,.6);}
+  .md:hover{border-color:var(--accent);transform:rotate(45deg) scale(1.3);}
+  .ml{position:absolute;font-size:9px;color:#9aa;white-space:nowrap;top:50%;transform:translateY(-50%);pointer-events:none;font-style:italic;}
+  .ml.crit{color:#ffc48a;font-weight:600;}
+  .tl{position:absolute;top:0;bottom:0;width:2px;background:var(--accent2);opacity:.6;pointer-events:none;z-index:20;}
+  /* critical path focus */
+  body.cpfocus tbody tr:not(.crit-row):not(.group-row) td{opacity:.28;}
+  body.cpfocus .gr.nc{opacity:.15;}
+  .mb{display:none;position:fixed;inset:0;background:rgba(0,0,0,.76);z-index:300;align-items:center;justify-content:center;}
+  .mb.open{display:flex;}
+  .modal{background:#161b2b;border:1px solid var(--border);border-radius:10px;padding:22px;width:520px;max-width:95vw;max-height:92vh;overflow:auto;}
+  .modal h2{font-size:14px;margin-bottom:14px;}
+  .fr{display:flex;flex-direction:column;gap:3px;margin-bottom:10px;}
+  .fr label{font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;}
+  .fr input,.fr select{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:7px 9px;font-family:'DM Sans',sans-serif;font-size:12.5px;outline:none;width:100%;}
+  .fr input:focus,.fr select:focus{border-color:var(--accent);}
+  .row{display:flex;gap:10px;} .row>div{flex:1;min-width:0;}
+  .mf{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;}
+
+  @media print {
+    @page { size: A3 landscape; margin: 10mm; }
+    body { background:#fff !important; color:#111 !important; font-size:10px; }
+    .topbar .toolbar, .btn, .mb, .resizer { display:none !important; }
+    .topbar { position:static; border-bottom:1px solid #ccc; padding:8px 14px; background:#fff !important; }
+    .legend,.cpbar { border-bottom:1px solid #ccc; padding:6px 14px; background:#fff !important; flex-wrap:wrap; white-space:normal; }
+    .topbar-title, .li { color:#111 !important; }
+    .cplab{color:#c25e00 !important;} .chip{color:#7a3a00 !important;background:#fff3e6 !important;}
+    .main-wrapper { display:block !important; height:auto !important; overflow:visible !important; }
+    .left-panel { width:100% !important; overflow:visible !important; border:none !important; break-after:page; page-break-after:always; }
+    .right-panel { overflow:visible !important; width:100% !important; }
+    .gsw { position:static !important; }
+    th,td { border-color:#ccc !important; color:#111 !important; background:#fff !important; position:static !important; }
+    tr.group-row>td { background:#f2f3f7 !important; }
+    tr.crit-row>td:first-child { box-shadow:inset 3px 0 0 #f90 !important; }
+    .flt.z{background:#ffd2a6 !important;}
+    .mc,.wc { background:#fff !important; color:#444 !important; border-color:#ccc !important; }
+    .gr { background:#fff !important; border-bottom:1px solid #eee !important; }
+    .gc { border-right:1px solid #eee !important; }
+    .bar.crit { background:linear-gradient(90deg,#ff9f43,#ff6348) !important; box-shadow:none !important; }
+    .md { border-color:#111 !important; background:#fff !important; }
+    .md.crit { border-color:#f90 !important; }
+    .rs,.ss { border:1px solid #ccc !important; color:#111 !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-title">Decarbonising Australian Road Freight &nbsp;·&nbsp; <span>ENGR90037 Capstone · MI-21-ZSHU-008 · Gantt + RACIX</span></div>
+  <div class="toolbar">
+    <button class="btn primary" onclick="openM(false,false)">+ Task</button>
+    <button class="btn" onclick="openM(true,false)">+ Group</button>
+    <button class="btn" onclick="openM(false,true)">◆ Milestone</button>
+    <button class="btn" id="cpBtn" onclick="toggleCP()">Focus critical path</button>
+    <button class="btn primary" id="depsBtn" onclick="toggleDeps()">⤳ Deps: CP</button>
+    <button class="btn" id="hrsBtn" onclick="toggleHrs()">Hours &amp; cost</button>
+    <button class="btn" onclick="autoSchedule()">⟳ Reschedule</button>
+    <button class="btn" onclick="cleanPreds()">✂ Clean Preds</button>
+    <button class="btn" onclick="exportCSV()">↓ CSV</button>
+    <button class="btn" onclick="copyData()" id="copyBtn">⎘ Copy Data</button>
+    <button class="btn" onclick="window.print()">↓ PDF</button>
+  </div>
+</div>
+
+<div class="legend" id="legend">
+  <div class="li"><div class="badge R">R</div> Responsible</div>
+  <div class="li"><div class="badge A">A</div> Accountable</div>
+  <div class="li"><div class="badge C">C</div> Consulted</div>
+  <div class="li"><div class="badge I">I</div> Informed</div>
+  <div class="li"><div class="badge X">X</div> Signoff</div>
+  <div class="sep"></div>
+  <div class="li"><div class="bleg crit"></div> Critical path (0 float)</div>
+  <div class="li"><div class="dleg crit"></div> Critical milestone</div>
+  <div class="li"><div class="dleg"></div> Milestone</div>
+  <div class="li"><div class="fleg"></div> Float</div>
+  <div class="li"><div class="bleg grp"></div> Phase</div>
+  <div class="sep"></div>
+  <span id="wsLegend" style="display:contents"></span>
+  <div class="li" style="margin-left:auto;font-size:10.5px">Click cells to edit · Drag bars · Red line = today</div>
+</div>
+
+<div class="cpbar" id="cpbar"></div>
+
+<div class="main-wrapper">
+  <div class="left-panel" id="lp">
+    <table>
+      <thead><tr id="thead"></tr></thead>
+      <tbody id="tb"></tbody>
+      <tfoot><tr id="tfoot"></tr></tfoot>
+    </table>
+  </div>
+  <div class="resizer" id="resizer"></div>
+  <div class="right-panel" id="rp">
+    <div id="gantt-scroll">
+      <div class="gsw" id="gsw">
+        <div class="gm" id="gmonths"></div>
+        <div class="gw" id="gweeks"></div>
+      </div>
+      <div class="gbody" id="gbody">
+        <div class="tl" id="tline"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD MODAL -->
+<div class="mb" id="modal">
+  <div class="modal">
+    <h2 id="mtitle">Add Task</h2>
+    <div class="row">
+      <div class="fr" style="flex:0 0 90px"><label>WBS code</label><input id="mw" placeholder="e.g. 3.6"></div>
+      <div class="fr"><label>Name</label><input id="mn" placeholder="Task name"></div>
+    </div>
+    <div class="row">
+      <div class="fr"><label>Workstream</label><select id="mws"></select></div>
+      <div class="fr"><label>Status</label><select id="mst"></select></div>
+    </div>
+    <div class="row">
+      <div class="fr"><label>Start date</label><input id="ms_in" type="date"></div>
+      <div id="drow" class="fr"><label>Duration (days)</label><input id="md" type="number" min="1" value="14"></div>
+    </div>
+    <div class="fr"><label>Predecessor WBS codes (comma-separated)</label><input id="mp" placeholder="e.g. 2.4,M3"></div>
+    <div class="row" id="mroles"></div>
+    <div class="row" id="mhrs"></div>
+    <div class="mf">
+      <button class="btn" onclick="closeM()">Cancel</button>
+      <button class="btn primary" onclick="saveM()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║                        DATA SECTION START                                ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+
+const PEOPLE = [
+  { k:"nick",   n:"Nick",     full:"Nicholas Price (Infrastructure & Technology)", cls:"p1", rate:100 },
+  { k:"elias",  n:"Elias",    full:"Elias Yaacoub (Economic Modelling, TCO/NPV)",   cls:"p2", rate:100 },
+  { k:"malhar", n:"Malhar",   full:"Malhar Kulkarni (Policy & Regulation)",         cls:"p3", rate:100 },
+  { k:"varun",  n:"Varun",    full:"Varun Kumaradevan (Freight Segmentation)",      cls:"p4", rate:100 },
+  { k:"sup",    n:"UoM Sup.", full:"UniMelb supervisors: Shuang Zhu, Wen Li, Hawei Zhou", cls:"p5", rate:200 },
+  { k:"ntro",   n:"NTRO",     full:"NTRO advisers: Brook Hall, Robert Kochhan",     cls:"p6", rate:200 }
+];
+
+const WS = {
+  INF:{ n:"Infrastructure & Technology",    c:"#2dd4bf" },
+  ECO:{ n:"Economics & Modelling",          c:"#4ade80" },
+  POL:{ n:"Policy & Regulation",            c:"#a78bfa" },
+  FRT:{ n:"Freight Profile & Segmentation", c:"#60a5fa" },
+  GEN:{ n:"General / whole team",           c:"#94a3b8" }
+};
+
+const TASKS = [
+  { wbs:"1",    group:true, ms:false, ws:"GEN", status:"",            name:"Project Definition & Preliminary Planning", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
+  { wbs:"1.1",  group:false, ms:false, ws:"GEN", status:"Complete",    name:"Confirm project scope, objectives & deliverables", start:"2026-07-27", dur:18, pred:"", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"C", ntro:"C", nickHrs:19, eliasHrs:26, malharHrs:24, varunHrs:23, supHrs:1, ntroHrs:1 },
+  { wbs:"1.2",  group:false, ms:false, ws:"INF", status:"Complete",    name:"Define infrastructure & technology scope, objectives & data sources", start:"2026-08-14", dur:21, pred:"1.1", nick:"A", elias:"I", malhar:"I", varun:"C", sup:"C", ntro:"", nickHrs:31, eliasHrs:1, malharHrs:1, varunHrs:4, supHrs:1, ntroHrs:0 },
+  { wbs:"1.3",  group:false, ms:false, ws:"POL", status:"Complete",    name:"Assess current regulatory landscape", start:"2026-08-14", dur:24, pred:"1.1", nick:"I", elias:"I", malhar:"A", varun:"C", sup:"C", ntro:"", nickHrs:1, eliasHrs:1, malharHrs:46, varunHrs:5, supHrs:1, ntroHrs:0 },
+  { wbs:"1.4",  group:false, ms:false, ws:"FRT", status:"Complete",    name:"Define freight profile, segmentation & route scenario scope and methodology", start:"2026-08-14", dur:27, pred:"1.1", nick:"R", elias:"C", malhar:"C", varun:"A", sup:"C", ntro:"C", nickHrs:28, eliasHrs:7, malharHrs:6, varunHrs:48, supHrs:1, ntroHrs:1 },
+  { wbs:"1.5",  group:false, ms:false, ws:"ECO", status:"Complete",    name:"Define economic scope, inputs & evaluation metrics (TCO, NPV, payback, feasibility score)", start:"2026-08-14", dur:14, pred:"1.1", nick:"I", elias:"A", malhar:"C", varun:"C", sup:"C", ntro:"", nickHrs:0, eliasHrs:28, malharHrs:3, varunHrs:3, supHrs:1, ntroHrs:0 },
+  { wbs:"1.6",  group:false, ms:false, ws:"ECO", status:"Complete",    name:"Design Excel workbook architecture for the PoC model", start:"2026-08-28", dur:10, pred:"1.5", nick:"C", elias:"A", malhar:"C", varun:"C", sup:"C", ntro:"", nickHrs:2, eliasHrs:20, malharHrs:2, varunHrs:2, supHrs:1, ntroHrs:0 },
+  { wbs:"M1",   group:false, ms:true, ws:"GEN", status:"Complete",    name:"Baseline Plan submitted (Charter, Gantt, GRA)", start:"2026-08-28", dur:0, pred:"1.1", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"I", nickHrs:3, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:2, ntroHrs:0 },
+  { wbs:"M2",   group:false, ms:true, ws:"GEN", status:"Complete",    name:"Project definition & preliminary research complete", start:"2026-09-10", dur:0, pred:"1.2,1.3,1.4,1.6,2.1", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"C", nickHrs:3, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:2, ntroHrs:1 },
+  { wbs:"2",    group:true, ms:false, ws:"GEN", status:"",            name:"Research & Data Collection", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
+  { wbs:"2.1",  group:false, ms:false, ws:"GEN", status:"Complete",    name:"Review government reports, studies & industry white papers", start:"2026-07-27", dur:39, pred:"", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"I", ntro:"C", nickHrs:40, eliasHrs:55, malharHrs:53, varunHrs:49, supHrs:1, ntroHrs:1 },
+  { wbs:"2.2",  group:false, ms:false, ws:"FRT", status:"Complete",    name:"Develop preview PoC model with 3 archetypes (NTRO progress update)", start:"2026-09-03", dur:15, pred:"1.5", nick:"R", elias:"R", malhar:"C", varun:"A", sup:"C", ntro:"I", nickHrs:15, eliasHrs:21, malharHrs:4, varunHrs:27, supHrs:1, ntroHrs:0 },
+  { wbs:"2.3",  group:false, ms:false, ws:"INF", status:"Complete",    name:"Review BEV technology options across freight archetypes", start:"2026-09-10", dur:22, pred:"1.2,M2", nick:"A", elias:"C", malhar:"I", varun:"C", sup:"I", ntro:"C", nickHrs:32, eliasHrs:5, malharHrs:1, varunHrs:5, supHrs:1, ntroHrs:1 },
+  { wbs:"2.4",  group:false, ms:false, ws:"INF", status:"In Progress", name:"Define charging & grid connection requirements (DNSP, connection, MCS readiness)", start:"2026-10-02", dur:18, pred:"2.3", nick:"A", elias:"C", malhar:"C", varun:"I", sup:"C", ntro:"C", nickHrs:26, eliasHrs:4, malharHrs:4, varunHrs:1, supHrs:1, ntroHrs:1 },
+  { wbs:"2.5",  group:false, ms:false, ws:"FRT", status:"In Progress", name:"Build Australian freight profile & route-scenario evidence base", start:"2026-09-10", dur:43, pred:"1.4,M2", nick:"R", elias:"C", malhar:"I", varun:"A", sup:"C", ntro:"C", nickHrs:44, eliasHrs:11, malharHrs:2, varunHrs:77, supHrs:1, ntroHrs:1 },
+  { wbs:"2.6",  group:false, ms:false, ws:"POL", status:"In Progress", name:"Integrate policy bank with the single model", start:"2026-09-10", dur:38, pred:"1.3,M2", nick:"I", elias:"C", malhar:"A", varun:"C", sup:"C", ntro:"", nickHrs:1, eliasHrs:9, malharHrs:73, varunHrs:8, supHrs:1, ntroHrs:0 },
+  { wbs:"2.7",  group:false, ms:false, ws:"POL", status:"In Progress", name:"Analyse federal reports for nation-wide road freight electrification policies", start:"2026-09-10", dur:50, pred:"M2", nick:"I", elias:"I", malhar:"A", varun:"I", sup:"C", ntro:"C", nickHrs:2, eliasHrs:2, malharHrs:96, varunHrs:2, supHrs:1, ntroHrs:1 },
+  { wbs:"M3",   group:false, ms:true, ws:"GEN", status:"Not Started", name:"Freight segmentation & feasibility framework complete", start:"2026-10-23", dur:0, pred:"2.4,2.5,2.6", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"C", nickHrs:3, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:2, ntroHrs:1 },
+  { wbs:"2.8",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Build freight cost profiles & extend Excel architecture for uncertainty", start:"2026-10-23", dur:21, pred:"1.6,M3", nick:"C", elias:"A", malhar:"C", varun:"R", sup:"C", ntro:"", nickHrs:4, eliasHrs:43, malharHrs:5, varunHrs:26, supHrs:1, ntroHrs:0 },
+  { wbs:"M4",   group:false, ms:true, ws:"INF", status:"Not Started", name:"All Energy Australia attended (28-29 Oct)", start:"2026-10-28", dur:0, pred:"2.4", nick:"A", elias:"R", malhar:"R", varun:"R", sup:"I", ntro:"I", nickHrs:4, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:1, ntroHrs:0 },
+  { wbs:"2.9",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Industry engagement to validate infrastructure assumptions (Linfox, NTRO, conference)", start:"2026-10-28", dur:30, pred:"2.4,M4", nick:"A", elias:"C", malhar:"I", varun:"C", sup:"I", ntro:"C", nickHrs:44, eliasHrs:7, malharHrs:1, varunHrs:6, supHrs:1, ntroHrs:1 },
+  { wbs:"2.10", group:false, ms:false, ws:"ECO", status:"Not Started", name:"Integrate case studies into cost profiles & collect supporting financial data", start:"2026-11-13", dur:35, pred:"2.8", nick:"C", elias:"A", malhar:"C", varun:"R", sup:"C", ntro:"C", nickHrs:6, eliasHrs:71, malharHrs:8, varunHrs:44, supHrs:1, ntroHrs:1 },
+  { wbs:"2.11", group:false, ms:false, ws:"POL", status:"Not Started", name:"Introduce priority-based policy setup into the integrated model", start:"2026-10-30", dur:42, pred:"2.6,2.7", nick:"I", elias:"C", malhar:"A", varun:"I", sup:"C", ntro:"", nickHrs:1, eliasHrs:10, malharHrs:81, varunHrs:1, supHrs:1, ntroHrs:0 },
+  { wbs:"M5",   group:false, ms:true, ws:"GEN", status:"Not Started", name:"Case studies & data collection complete", start:"2026-12-18", dur:0, pred:"2.9,2.10,2.11", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"C", nickHrs:3, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:2, ntroHrs:1 },
+  { wbs:"3",    group:true, ms:false, ws:"GEN", status:"",            name:"Analysis & Model Development", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
+  { wbs:"3.1",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Design infrastructure & technology model inputs & outputs (DNSP scoring, charging, vehicle DB)", start:"2026-12-18", dur:21, pred:"2.4,2.9,M5", nick:"A", elias:"C", malhar:"I", varun:"C", sup:"C", ntro:"", nickHrs:31, eliasHrs:5, malharHrs:1, varunHrs:4, supHrs:1, ntroHrs:0 },
+  { wbs:"3.2",  group:false, ms:false, ws:"INF", status:"In Progress", name:"Configure route input data via Google Routes & Open Charge Map APIs", start:"2026-12-18", dur:42, pred:"2.5,M5", nick:"A", elias:"I", malhar:"I", varun:"C", sup:"", ntro:"", nickHrs:62, eliasHrs:2, malharHrs:2, varunHrs:9, supHrs:0, ntroHrs:0 },
+  { wbs:"3.3",  group:false, ms:false, ws:"FRT", status:"Not Started", name:"Develop freight segmentation, select route scenarios & build duty-cycle inputs", start:"2026-12-18", dur:35, pred:"2.5,M5", nick:"R", elias:"C", malhar:"I", varun:"A", sup:"C", ntro:"C", nickHrs:36, eliasHrs:9, malharHrs:1, varunHrs:63, supHrs:1, ntroHrs:1 },
+  { wbs:"3.4",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Build TCO/NPV models per case study & run sensitivity analysis", start:"2027-01-22", dur:21, pred:"2.10,3.3", nick:"C", elias:"A", malhar:"C", varun:"C", sup:"C", ntro:"", nickHrs:4, eliasHrs:43, malharHrs:5, varunHrs:4, supHrs:1, ntroHrs:0 },
+  { wbs:"3.5",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Develop Monte Carlo distributions, run simulations & build/test initial prototype", start:"2027-02-12", dur:16, pred:"3.1,3.2,3.4,2.11", nick:"R", elias:"A", malhar:"R", varun:"R", sup:"C", ntro:"", nickHrs:16, eliasHrs:33, malharHrs:22, varunHrs:20, supHrs:1, ntroHrs:0 },
+  { wbs:"M6",   group:false, ms:true, ws:"GEN", status:"Not Started", name:"Excel model & feasibility tool prototype complete", start:"2027-02-28", dur:0, pred:"3.5", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"I", nickHrs:3, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:2, ntroHrs:0 },
+  { wbs:"4",    group:true, ms:false, ws:"GEN", status:"",            name:"Integration, Validation & Scenario Testing", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
+  { wbs:"4.1",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Integrate & validate economic outputs into combined feasibility score", start:"2027-02-28", dur:19, pred:"M6", nick:"C", elias:"A", malhar:"C", varun:"C", sup:"C", ntro:"", nickHrs:3, eliasHrs:39, malharHrs:4, varunHrs:4, supHrs:1, ntroHrs:0 },
+  { wbs:"4.2",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Implement infrastructure & technology inputs into Excel model", start:"2027-02-28", dur:14, pred:"3.1,M6", nick:"A", elias:"C", malhar:"I", varun:"C", sup:"", ntro:"", nickHrs:21, eliasHrs:3, malharHrs:1, varunHrs:3, supHrs:0, ntroHrs:0 },
+  { wbs:"4.3",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Integrate route & charger API outputs into final model", start:"2027-02-28", dur:12, pred:"3.2,M6", nick:"A", elias:"C", malhar:"I", varun:"C", sup:"", ntro:"", nickHrs:18, eliasHrs:3, malharHrs:0, varunHrs:3, supHrs:0, ntroHrs:0 },
+  { wbs:"4.4",  group:false, ms:false, ws:"FRT", status:"Not Started", name:"Integrate freight segments, route scenarios & duty-cycle assumptions with NTRO and model", start:"2027-02-28", dur:14, pred:"3.3,M6", nick:"C", elias:"C", malhar:"I", varun:"A", sup:"", ntro:"C", nickHrs:3, eliasHrs:3, malharHrs:1, varunHrs:25, supHrs:0, ntroHrs:1 },
+  { wbs:"4.5",  group:false, ms:false, ws:"POL", status:"Not Started", name:"Integrate state & federal policies into feasibility scores and gate system", start:"2027-02-28", dur:14, pred:"2.11,M6", nick:"I", elias:"C", malhar:"A", varun:"I", sup:"C", ntro:"", nickHrs:0, eliasHrs:3, malharHrs:27, varunHrs:0, supHrs:1, ntroHrs:0 },
+  { wbs:"4.6",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Scenario & stress-test the integrated model (sensitivity, Monte Carlo >1000 runs)", start:"2027-03-19", dur:14, pred:"4.1,4.2,4.3,4.4,4.5", nick:"R", elias:"A", malhar:"R", varun:"R", sup:"C", ntro:"", nickHrs:14, eliasHrs:28, malharHrs:19, varunHrs:18, supHrs:1, ntroHrs:0 },
+  { wbs:"4.7",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Validate infrastructure assumptions & tool outputs against industry input", start:"2027-03-14", dur:19, pred:"4.2,4.3,2.9", nick:"A", elias:"C", malhar:"I", varun:"C", sup:"C", ntro:"C", nickHrs:28, eliasHrs:5, malharHrs:1, varunHrs:4, supHrs:1, ntroHrs:1 },
+  { wbs:"4.8",  group:false, ms:false, ws:"GEN", status:"Not Started", name:"Verify results against real-world cases & document findings", start:"2027-04-02", dur:7, pred:"4.6", nick:"R", elias:"R", malhar:"R", varun:"A", sup:"C", ntro:"C", nickHrs:7, eliasHrs:10, malharHrs:9, varunHrs:13, supHrs:1, ntroHrs:0 },
+  { wbs:"M7",   group:false, ms:true, ws:"GEN", status:"Not Started", name:"Integration, validation & scenario testing complete", start:"2027-04-09", dur:0, pred:"4.7,4.8", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"C", nickHrs:3, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:2, ntroHrs:0 },
+  { wbs:"5",    group:true, ms:false, ws:"GEN", status:"",            name:"Report Drafting & Review", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
+  { wbs:"5.1",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Finalise Excel tool & user documentation", start:"2027-04-09", dur:7, pred:"M7", nick:"R", elias:"A", malhar:"R", varun:"R", sup:"I", ntro:"", nickHrs:7, eliasHrs:14, malharHrs:9, varunHrs:9, supHrs:1, ntroHrs:0 },
+  { wbs:"5.2",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Write infrastructure & technology section", start:"2027-04-09", dur:19, pred:"M7", nick:"A", elias:"I", malhar:"I", varun:"I", sup:"C", ntro:"", nickHrs:28, eliasHrs:1, malharHrs:1, varunHrs:1, supHrs:1, ntroHrs:0 },
+  { wbs:"5.3",  group:false, ms:false, ws:"FRT", status:"Not Started", name:"Document freight profile, segmentation methodology, route scenarios & findings", start:"2027-04-09", dur:19, pred:"M7", nick:"C", elias:"I", malhar:"I", varun:"A", sup:"C", ntro:"", nickHrs:3, eliasHrs:1, malharHrs:1, varunHrs:34, supHrs:1, ntroHrs:0 },
+  { wbs:"5.4",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Write economic methodology, findings, assumptions & limitations", start:"2027-04-16", dur:14, pred:"5.1", nick:"I", elias:"A", malhar:"I", varun:"C", sup:"C", ntro:"", nickHrs:0, eliasHrs:28, malharHrs:1, varunHrs:3, supHrs:1, ntroHrs:0 },
+  { wbs:"5.5",  group:false, ms:false, ws:"POL", status:"Not Started", name:"Detail regulatory framework & backend references for the tool", start:"2027-04-09", dur:19, pred:"M7", nick:"I", elias:"I", malhar:"A", varun:"I", sup:"C", ntro:"", nickHrs:1, eliasHrs:1, malharHrs:37, varunHrs:1, supHrs:1, ntroHrs:0 },
+  { wbs:"5.6",  group:false, ms:false, ws:"GEN", status:"Not Started", name:"Compile & edit draft final report", start:"2027-04-30", dur:7, pred:"5.2,5.3,5.4,5.5", nick:"A", elias:"R", malhar:"R", varun:"R", sup:"C", ntro:"I", nickHrs:10, eliasHrs:10, malharHrs:9, varunHrs:9, supHrs:1, ntroHrs:0 },
+  { wbs:"M8",   group:false, ms:true, ws:"GEN", status:"Not Started", name:"Draft final report shared with supervisors", start:"2027-05-07", dur:0, pred:"5.6", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"I", nickHrs:3, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:2, ntroHrs:0 },
+  { wbs:"6",    group:true, ms:false, ws:"GEN", status:"",            name:"Final Submission & Presentation", start:"", dur:0, pred:"", nick:"", elias:"", malhar:"", varun:"", sup:"", ntro:"", nickHrs:0, eliasHrs:0, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
+  { wbs:"6.1",  group:false, ms:false, ws:"GEN", status:"Not Started", name:"Address supervisor feedback & finalise report", start:"2027-05-07", dur:21, pred:"M8", nick:"R", elias:"R", malhar:"R", varun:"A", sup:"C", ntro:"", nickHrs:22, eliasHrs:30, malharHrs:28, varunHrs:38, supHrs:1, ntroHrs:0 },
+  { wbs:"6.2",  group:false, ms:false, ws:"FRT", status:"Not Started", name:"Finalise freight workstream outputs & Excel tool release", start:"2027-05-07", dur:11, pred:"M8", nick:"R", elias:"C", malhar:"C", varun:"A", sup:"I", ntro:"I", nickHrs:11, eliasHrs:3, malharHrs:3, varunHrs:20, supHrs:0, ntroHrs:0 },
+  { wbs:"6.3",  group:false, ms:false, ws:"ECO", status:"Not Started", name:"Prepare layman & technical presentations incl. Endeavour and NTRO versions", start:"2027-05-07", dur:18, pred:"M8", nick:"R", elias:"A", malhar:"R", varun:"R", sup:"C", ntro:"C", nickHrs:19, eliasHrs:37, malharHrs:24, varunHrs:23, supHrs:1, ntroHrs:0 },
+  { wbs:"6.4",  group:false, ms:false, ws:"INF", status:"Not Started", name:"Prepare infrastructure & technology summary for final presentation", start:"2027-05-07", dur:11, pred:"M8", nick:"A", elias:"I", malhar:"I", varun:"I", sup:"", ntro:"", nickHrs:16, eliasHrs:1, malharHrs:0, varunHrs:0, supHrs:0, ntroHrs:0 },
+  { wbs:"6.5",  group:false, ms:false, ws:"POL", status:"Not Started", name:"Prepare policy & regulatory structure briefing for NTRO", start:"2027-05-07", dur:11, pred:"M8", nick:"I", elias:"I", malhar:"A", varun:"I", sup:"", ntro:"C", nickHrs:0, eliasHrs:1, malharHrs:21, varunHrs:0, supHrs:0, ntroHrs:0 },
+  { wbs:"M9",   group:false, ms:true, ws:"GEN", status:"Not Started", name:"Final report, Excel tool & Endeavour presentation submitted", start:"2027-05-28", dur:0, pred:"6.1,6.2,6.3,6.4,6.5", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"I", nickHrs:3, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:2, ntroHrs:0 },
+  { wbs:"6.6",  group:false, ms:false, ws:"GEN", status:"Not Started", name:"Present final model & report to NTRO", start:"2027-05-28", dur:14, pred:"M9", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"I", ntro:"X", nickHrs:14, eliasHrs:20, malharHrs:19, varunHrs:18, supHrs:0, ntroHrs:1 },
+  { wbs:"6.7",  group:false, ms:false, ws:"GEN", status:"Not Started", name:"Prepare for oral examination", start:"2027-05-28", dur:18, pred:"M9", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"C", ntro:"", nickHrs:19, eliasHrs:26, malharHrs:24, varunHrs:23, supHrs:1, ntroHrs:0 },
+  { wbs:"M10",  group:false, ms:true, ws:"GEN", status:"Not Started", name:"Oral examination completed", start:"2027-06-15", dur:0, pred:"6.7", nick:"R", elias:"R", malhar:"R", varun:"R", sup:"X", ntro:"I", nickHrs:3, eliasHrs:4, malharHrs:4, varunHrs:4, supHrs:2, ntroHrs:0 }
+];
+
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║                         DATA SECTION END                                ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+
+const STATUSES = ["Complete","In Progress","Not Started","On Hold"];
+const HRS = PEOPLE.map(p => p.k + 'Hrs');
+let uid = 1;
+let tasks = TASKS.map(t => Object.assign({ _id: uid++ }, t));
+let mIsGrp = false, mIsMs = false, depMode = 1, cpFocus = false;
+const ROWH = 32;
+
+const WEEKW = 30, DAYW = WEEKW / 7;
+const pd  = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y,m-1,d); };
+const addD= (dt,n) => { const d = new Date(dt); d.setDate(d.getDate()+n); return d; };
+const diff= (a,b) => Math.round((b-a)/86400000);
+const toS = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fmt = s => { if (!s) return ''; const d = pd(s); return String(d.getDate()).padStart(2,'0') + ' ' + MON[d.getMonth()] + ' ' + String(d.getFullYear()).slice(2); };
+const fin = t => toS(addD(pd(t.start), t.dur||0));
+const byW = w => tasks.find(t => !t.group && t.wbs === w);
+const predList = t => (t.pred||'').split(',').map(s => s.trim()).filter(Boolean);
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+const TODAY = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
+
+// ── Phase roll-up + critical path (forward dates as entered, backward pass for float)
+function compute() {
+  // phase spans from their child rows
+  let cur = null;
+  const kids = new Map();
+  tasks.forEach(t => { if (t.group) { cur = t; kids.set(t, []); } else if (cur) kids.get(cur).push(t); });
+  kids.forEach((ch, g) => {
+    if (!ch.length) { g.start = g.start || toS(TODAY); g.dur = g.dur || 1; return; }
+    const s = ch.reduce((m,t) => t.start < m ? t.start : m, ch[0].start);
+    const e = ch.reduce((m,t) => fin(t) > m ? fin(t) : m, fin(ch[0]));
+    g.start = s; g.dur = diff(pd(s), pd(e));
+    HRS.forEach(h => g[h] = ch.reduce((a,t) => a + (t[h]||0), 0));
+    g._kids = ch;
+  });
+
+  const real = tasks.filter(t => !t.group);
+  const end = real.reduce((m,t) => fin(t) > m ? fin(t) : m, '0000');
+  const succ = new Map(real.map(t => [t.wbs, []]));
+  real.forEach(t => predList(t).forEach(p => { if (succ.has(p)) succ.get(p).push(t); }));
+  const LF = new Map(), visiting = new Set();
+  const lf = t => {
+    if (LF.has(t.wbs)) return LF.get(t.wbs);
+    if (visiting.has(t.wbs)) return end;           // guard against loops
+    visiting.add(t.wbs);
+    const s = succ.get(t.wbs) || [];
+    const v = s.length ? s.reduce((m,x) => { const ls = toS(addD(pd(lf(x)), -(x.dur||0))); return ls < m ? ls : m; }, '9999') : end;
+    visiting.delete(t.wbs); LF.set(t.wbs, v); return v;
+  };
+  real.forEach(t => {
+    t._fl = diff(pd(fin(t)), pd(lf(t)));
+    t._hasSucc = (succ.get(t.wbs)||[]).length > 0;
+    t.cp = t._fl <= 0;
+  });
+  kids.forEach((ch, g) => { g.cp = ch.some(t => t.cp); });
+}
+
+function taskCost(t) { return PEOPLE.reduce((s,p) => s + (t[p.k+'Hrs']||0) * p.rate, 0); }
+const money = n => '$' + n.toLocaleString('en-AU');
+
+function bnds() {
+  let mn = pd("2026-07-20"), mx = pd("2027-06-28");
+  tasks.forEach(t => { if (!t.start) return; const s = pd(t.start), e = addD(s, t.dur||0); if (s < mn) mn = s; if (e > mx) mx = e; });
+  while (mn.getDay() !== 1) mn = addD(mn,-1);
+  while (mx.getDay() !== 0) mx = addD(mx,1);
+  return { mn, mx };
+}
+
+function renderHead() {
+  const h = PEOPLE.map(p => `<th style="width:44px" class="${p.cls}" title="${esc(p.full)}">${p.n}</th>`).join('');
+  const hh = PEOPLE.map((p,i) => `<th class="hc ${p.cls}" style="width:40px;${i===0?'border-left:2px solid var(--border)':''}" title="${esc(p.full)} hours">${p.n.split(' ')[0]}<br>hrs</th>`).join('');
+  document.getElementById('thead').innerHTML = `
+    <th style="width:38px">WBS</th>
+    <th style="width:225px;text-align:left">Task / Milestone</th>
+    <th style="width:84px">Status</th>
+    <th style="width:46px">Dur</th>
+    <th style="width:64px">Start</th>
+    <th style="width:64px">Finish</th>
+    <th style="width:48px" title="Days the task can slip without delaying the final milestone">Float</th>
+    <th style="width:64px">Pred.</th>
+    ${h}${hh}
+    <th class="hc" style="width:72px;border-left:2px solid var(--border)">Cost</th>
+    <th style="width:72px"></th>`;
+  document.getElementById('wsLegend').innerHTML = Object.values(WS).map(w =>
+    `<div class="li"><span class="wsd" style="background:${w.c}"></span>${w.n}</div>`).join('');
+}
+
+function statusCls(t) {
+  if (t.status !== 'Complete' && !t.group && fin(t) < toS(TODAY) && t.status) return 'late';
+  return (t.status||'').replace(/\s/g,'');
+}
+
+function renderL() {
+  const tb = document.getElementById('tb'); tb.innerHTML = '';
+  tasks.forEach(t => {
+    const tr = document.createElement('tr');
+    if (t.group) tr.classList.add('group-row');
+    if (t.ms)    tr.classList.add('milestone-row');
+    if (t.cp && !t.group) tr.classList.add('crit-row');
+    const ws = WS[t.ws] || WS.GEN;
+    const dd  = t.ms ? '◆ 0d' : t.dur + 'd';
+    const ind = (t.group || t.ms) ? '6px' : '14px';
+    const fl = t.group ? '' : (t.cp ? '0d' : t._fl + 'd');
+    const roles = PEOPLE.map(p => `<td class="rc">${t.group ? '' : rsel(t._id, p.k, t[p.k])}</td>`).join('');
+    const hrs = PEOPLE.map((p,i) => `<td class="dc hc ${t.group?'':'ed'}" style="${i===0?'border-left:2px solid var(--border);':''}${t.group?'color:var(--text)':''}" ${t.group?'':`onclick="ied(this,${t._id},'${p.k}Hrs')"`}>${t[p.k+'Hrs']||0}</td>`).join('');
+    const stat = t.group ? '' : `<select class="ss ${statusCls(t)}" onchange="sf(${t._id},'status',this.value);render()" title="${statusCls(t)==='late'?'Past its finish date and not complete':''}">${STATUSES.map(s => `<option ${s===t.status?'selected':''}>${s}</option>`).join('')}</select>`;
+    tr.innerHTML = `
+      <td class="rn">${esc(t.wbs)}</td>
+      <td class="tntd" style="padding-left:${ind}">
+        <div class="tnw">${t.group ? '' : `<span class="wsd" style="background:${ws.c}" title="${ws.n}"></span>`}
+        <span class="tnv" contenteditable="true" onblur="setName(${t._id},this.textContent)" title="${esc(t.name)}${t.group?'':' | '+ws.n}">${esc(t.name)}</span></div>
+      </td>
+      <td class="rc">${stat}</td>
+      <td class="dc ${t.group?'':'ed'}" ${t.group?'':`onclick="ied(this,${t._id},'dur')"`}>${dd}</td>
+      <td class="dtc ${t.group?'':'ed'}" ${t.group?'':`onclick="ied(this,${t._id},'start')"`}>${fmt(t.start)}</td>
+      <td class="dtc">${fmt(fin(t))}</td>
+      <td class="flt ${t.cp && !t.group ? 'z' : ''}">${fl}</td>
+      <td class="pc ${t.group?'':'ed'}" title="${esc(t.pred||'')}" ${t.group?'':`onclick="ied(this,${t._id},'pred')"`}>${t.group ? '' : (esc(t.pred)||'–')}</td>
+      ${roles}${hrs}
+      <td class="dc hc" style="border-left:2px solid var(--border);color:var(--i);font-weight:600">${money(taskCost(t))}</td>
+      <td style="white-space:nowrap">
+        <button class="btn" style="padding:1px 4px;font-size:10px" onclick="moveUp(${t._id})">▲</button>
+        <button class="btn" style="padding:1px 4px;font-size:10px" onclick="moveDown(${t._id})">▼</button>
+        <button class="btn danger" style="padding:1px 5px;font-size:10px" onclick="del(${t._id})">✕</button>
+      </td>`;
+    tb.appendChild(tr);
+  });
+  // totals (non-group rows only, so phases are not double counted)
+  const real = tasks.filter(t => !t.group);
+  const tot = PEOPLE.map((p,i) => `<td class="dc hc ${p.cls}" style="${i===0?'border-left:2px solid var(--border)':''}">${real.reduce((a,t)=>a+(t[p.k+'Hrs']||0),0)}</td>`).join('');
+  const total = real.reduce((a,t) => a + taskCost(t), 0);
+  document.getElementById('tfoot').innerHTML = `
+    <td class="rn"></td><td style="text-align:left">TOTAL PERSONNEL</td>
+    <td colspan="${6 + PEOPLE.length}" class="dc" style="text-align:right;color:var(--text-muted);font-weight:400">${real.filter(t=>t.cp).length} critical items · ${real.filter(t=>t.status==='Complete').length}/${real.length} complete</td>
+    ${tot}<td class="dc hc" style="border-left:2px solid var(--border);color:var(--i)">${money(total)}</td><td></td>`;
+}
+
+function setName(id, v) { const t = tasks.find(x => x._id===id); if (t && t.name !== v) { t.name = v; renderG(); renderCPBar(); } }
+
+function rsel(id, p, v) {
+  return `<select class="rs ${v||'e'}" onchange="sf(${id},'${p}',this.value);apR(this)">
+    <option value="">–</option>${['R','A','C','I','X'].map(r => `<option ${v===r?'selected':''}>${r}</option>`).join('')}</select>`;
+}
+function apR(s) { s.className = 'rs ' + (s.value||'e'); }
+
+function ied(td, id, f) {
+  const t = tasks.find(x => x._id===id);
+  if (!t || (t.ms && f==='dur')) return;
+  const isNum = f==='dur' || HRS.includes(f);
+  const orig = t[f];
+  const inp = document.createElement('input'); inp.className = 'ci';
+  inp.type = isNum ? 'number' : f==='start' ? 'date' : 'text';
+  inp.value = orig ?? ''; td.textContent=''; td.appendChild(inp); inp.focus();
+  inp.onblur = () => { sf(id, f, inp.value); render(); };
+  inp.onkeydown = e => { if (e.key==='Enter') inp.blur(); };
+}
+
+function renderG() {
+  const { mn, mx } = bnds();
+  const td = diff(mn,mx), tw = Math.ceil(td/7), twpx = tw*WEEKW;
+  const toff = diff(mn, TODAY);
+
+  const mEl = document.getElementById('gmonths'); mEl.innerHTML = '';
+  let cur = new Date(mn.getFullYear(), mn.getMonth(), 1);
+  while (cur <= mx) {
+    const ds = Math.max(0, diff(mn, new Date(cur.getFullYear(), cur.getMonth(), 1)));
+    const de = Math.min(td, diff(mn, new Date(cur.getFullYear(), cur.getMonth()+1, 0))+1);
+    const c = document.createElement('div'); c.className='mc'; c.style.width=((de-ds)*DAYW)+'px';
+    c.textContent = cur.toLocaleDateString('en-AU',{month:'short',year:'2-digit'});
+    mEl.appendChild(c); cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1);
+  }
+  const wEl = document.getElementById('gweeks'); wEl.innerHTML = '';
+  for (let w=0; w<tw; w++) {
+    const wd = addD(mn, w*7);
+    const c = document.createElement('div'); c.className='wc';
+    if (Math.floor(toff/7)===w) c.classList.add('tw');
+    c.style.width = WEEKW+'px';
+    c.textContent = wd.getDate()+'/'+(wd.getMonth()+1);
+    wEl.appendChild(c);
+  }
+
+  const body = document.getElementById('gbody');
+  Array.from(body.children).forEach(ch => { if (!ch.classList.contains('tl')) body.removeChild(ch); });
+  document.getElementById('gantt-scroll').style.width = twpx+'px';
+  document.getElementById('gsw').style.width = twpx+'px';
+  body.style.width = twpx+'px';
+  const tl = document.getElementById('tline');
+  tl.style.left = (toff*DAYW)+'px';
+  tl.style.height = ((tasks.length+1)*ROWH+8)+'px';
+
+  const mkRow = () => {
+    const row = document.createElement('div'); row.className='gr'; row.style.width=twpx+'px';
+    for (let w=0; w<tw; w++) {
+      const c = document.createElement('div');
+      c.className = 'gc' + (Math.floor(toff/7)===w?' tc':'');
+      c.style.width = WEEKW+'px'; row.appendChild(c);
+    }
+    return row;
+  };
+
+  tasks.forEach(t => {
+    const row = mkRow();
+    if (t.group) row.classList.add('grow');
+    if (!t.cp && !t.group) row.classList.add('nc');
+    const ws = WS[t.ws] || WS.GEN;
+    const sDate = pd(t.start);
+    const bL = diff(mn, sDate) * DAYW;
+    const fTxt = t.group ? '' : (t.cp ? '\n⚠ CRITICAL PATH (0 days float)' : `\nFloat: ${t._fl} days`);
+
+    if (t.ms) {
+      const dm = document.createElement('div'); dm.className='md' + (t.cp?' crit':''); dm.style.left=(bL-7)+'px';
+      dm.title = `${t.wbs}  ${t.name}\n${fmt(t.start)}${fTxt}`;
+      row.appendChild(dm);
+      const lb = document.createElement('div'); lb.className='ml' + (t.cp?' crit':''); lb.style.left=(bL+12)+'px';
+      lb.textContent = t.name;
+      row.appendChild(lb);
+    } else {
+      const bW = Math.max(t.dur*DAYW, 4);
+      const bar = document.createElement('div');
+      bar.className = 'bar ' + (t.group?'grp':'task') + (t.cp && !t.group?' crit':'');
+      if (!t.group && !t.cp) bar.style.background = ws.c;
+      bar.style.left=bL+'px'; bar.style.width=bW+'px';
+      if (!t.group && t.dur>6) bar.textContent = t.wbs + '  ' + t.name;
+      bar.title = `${t.wbs}  ${t.name}\n${fmt(t.start)} → ${fmt(fin(t))} (${t.dur}d)${t.group?'':'\n'+ws.n}${fTxt}`;
+      if (!t.group) drag(bar, t);
+      row.appendChild(bar);
+      // float tail: how far this task could slip before hitting the critical path
+      if (!t.group && !t.cp && t._hasSucc && t._fl > 0) {
+        const sl = document.createElement('div'); sl.className = 'slack';
+        sl.style.left = (bL+bW)+'px'; sl.style.width = (t._fl*DAYW)+'px'; sl.style.borderColor = ws.c;
+        row.appendChild(sl);
+      }
+    }
+    body.appendChild(row);
+  });
+  body.appendChild(mkRow()); // aligns with totals row
+}
+
+function drag(bar, t) {
+  let sx, ol;
+  bar.addEventListener('mousedown', e => {
+    sx=e.clientX; ol=parseFloat(bar.style.left); bar.style.cursor='grabbing';
+    const mv = ev => { bar.style.left = Math.max(0, ol+(ev.clientX-sx))+'px'; };
+    const up = ev => {
+      document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up);
+      bar.style.cursor='grab';
+      const sh = Math.round((ev.clientX-sx)/DAYW);
+      if (sh) { t.start = toS(addD(pd(t.start),sh)); render(); }
+    };
+    document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+    e.preventDefault();
+  });
+}
+
+function syncH() {
+  requestAnimationFrame(() => {
+    const lr = document.querySelectorAll('#tb tr, #tfoot');
+    const gr = document.querySelectorAll('#gbody .gr');
+    lr.forEach((r,i) => { const h=Math.max(r.offsetHeight,ROWH); if(gr[i]) gr[i].style.height=h+'px'; });
+  });
+}
+
+function renderCPBar() {
+  const cp = tasks.filter(t => !t.group && t.cp).sort((a,b) => a.start < b.start ? -1 : a.start > b.start ? 1 : (a.dur||0)-(b.dur||0));
+  const el = document.getElementById('cpbar');
+  if (!cp.length) { el.innerHTML = '<span class="cplab">Critical path</span><span class="cpmeta">none found, check predecessors</span>'; return; }
+  const s = cp[0].start, e = cp.reduce((m,t) => fin(t) > m ? fin(t) : m, '0000');
+  el.innerHTML = `<span class="cplab">Critical path</span><span class="cpmeta">${cp.length} items · ${fmt(s)} → ${fmt(e)} · any slip here delays the oral exam</span>` +
+    cp.map(t => `<span class="chip ${t.ms?'m':''}" title="${esc(t.name)}\n${fmt(t.start)}${t.ms?'':' → '+fmt(fin(t))}">${t.ms?'◆ ':''}${esc(t.wbs)}</span>`).join('<span class="arrow">▸</span>');
+}
+
+function sf(id, f, v) {
+  const t = tasks.find(x => x._id===id); if (!t) return;
+  if (f==='dur' || HRS.includes(f)) t[f] = Math.max(0, parseInt(v)||0); else t[f] = v;
+}
+function del(id) { tasks = tasks.filter(t => t._id!==id); render(); }
+function moveUp(id)   { const i=tasks.findIndex(t=>t._id===id); if(i>0){[tasks[i-1],tasks[i]]=[tasks[i],tasks[i-1]];render();} }
+function moveDown(id) { const i=tasks.findIndex(t=>t._id===id); if(i<tasks.length-1){[tasks[i+1],tasks[i]]=[tasks[i],tasks[i+1]];render();} }
+
+function buildModal() {
+  document.getElementById('mws').innerHTML = Object.entries(WS).map(([k,w]) => `<option value="${k}">${w.n}</option>`).join('');
+  document.getElementById('mst').innerHTML = STATUSES.map(s => `<option>${s}</option>`).join('');
+  document.getElementById('mroles').innerHTML = PEOPLE.map(p => `<div class="fr"><label>${p.n}</label><select id="mr_${p.k}"><option value="">–</option><option>R</option><option>A</option><option>C</option><option>I</option><option>X</option></select></div>`).join('');
+  document.getElementById('mhrs').innerHTML = PEOPLE.map(p => `<div class="fr"><label>${p.n} hrs</label><input id="mh_${p.k}" type="number" min="0" value="0"></div>`).join('');
+}
+function openM(grp, ms) {
+  mIsGrp=grp; mIsMs=ms;
+  document.getElementById('mtitle').textContent = ms?'Add Milestone':grp?'Add Phase':'Add Task';
+  ['mw','mn','mp'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('ms_in').value = toS(TODAY);
+  document.getElementById('md').value=14;
+  document.getElementById('mst').value='Not Started';
+  PEOPLE.forEach(p => { document.getElementById('mr_'+p.k).value=''; document.getElementById('mh_'+p.k).value=0; });
+  document.getElementById('drow').style.display = ms?'none':'flex';
+  document.getElementById('modal').classList.add('open');
+}
+function closeM() { document.getElementById('modal').classList.remove('open'); }
+function saveM() {
+  const t = {
+    _id: uid++, group: mIsGrp, ms: mIsMs,
+    wbs: document.getElementById('mw').value.trim() || ('N' + uid),
+    name: document.getElementById('mn').value.trim() || 'New',
+    ws: document.getElementById('mws').value,
+    status: mIsGrp ? '' : document.getElementById('mst').value,
+    start: document.getElementById('ms_in').value,
+    dur: mIsMs ? 0 : (parseInt(document.getElementById('md').value)||14),
+    pred: document.getElementById('mp').value.trim()
+  };
+  PEOPLE.forEach(p => { t[p.k] = document.getElementById('mr_'+p.k).value; t[p.k+'Hrs'] = parseInt(document.getElementById('mh_'+p.k).value)||0; });
+  tasks.push(t); closeM(); render();
+}
+
+function exportCSV() {
+  const rows = [['WBS','Type','Name','Workstream','Status','Duration','Start','Finish','Float (d)','Critical Path','Predecessors',
+    ...PEOPLE.map(p=>p.n), ...PEOPLE.map(p=>p.n+' Hrs'),'Cost ($)']];
+  tasks.forEach(t => {
+    const type = t.ms ? 'Milestone' : t.group ? 'Phase' : 'Task';
+    rows.push([t.wbs, type, t.name, t.group?'':(WS[t.ws]||WS.GEN).n, t.status||'', t.dur, t.start, fin(t), t.group?'':t._fl, t.cp?'Yes':'', t.pred||'',
+      ...PEOPLE.map(p=>t[p.k]||''), ...PEOPLE.map(p=>t[p.k+'Hrs']||0), taskCost(t)]);
+  });
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'freight-capstone-gantt.csv'; a.click();
+}
+
+function copyData() {
+  const q = s => JSON.stringify(s ?? '');
+  const lines = tasks.map(t => {
+    const roles = PEOPLE.map(p => `${p.k}:${q(t[p.k])}`).join(', ');
+    const hrs = t.group ? PEOPLE.map(p => `${p.k}Hrs:0`).join(', ') : PEOPLE.map(p => `${p.k}Hrs:${t[p.k+'Hrs']||0}`).join(', ');
+    return `  { wbs:${q(t.wbs)}, group:${!!t.group}, ms:${!!t.ms}, ws:${q(t.ws)}, status:${q(t.status)}, name:${q(t.name)}, start:${q(t.group?'':t.start)}, dur:${t.group?0:(t.dur||0)}, pred:${q(t.pred)}, ${roles}, ${hrs} }`;
+  });
+  const out = `const TASKS = [\n${lines.join(',\n')}\n];`;
+  navigator.clipboard.writeText(out).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = '✓ Copied!'; btn.classList.add('primary');
+    setTimeout(() => { btn.textContent = '⎘ Copy Data'; btn.classList.remove('primary'); }, 2000);
+  });
+}
+
+function cleanPreds() {
+  tasks.forEach(t => {
+    if (t.group || !t.pred) return;
+    t.pred = predList(t).filter(w => { const p = byW(w); return p && t.start >= fin(p); }).join(',');
+  });
+  render();
+}
+
+function autoSchedule() {
+  // Forward pass: push each task's start to the latest predecessor finish. Repeats for chains.
+  let changed = true, passes = 0;
+  while (changed && passes++ < 100) {
+    changed = false;
+    tasks.forEach(t => {
+      if (t.group) return;
+      predList(t).forEach(w => {
+        const p = byW(w); if (!p) return;
+        const pf = fin(p);
+        if (pf > t.start) { t.start = pf; changed = true; }
+      });
+    });
+  }
+  render();
+}
+
+function toggleCP() {
+  cpFocus = !cpFocus;
+  document.body.classList.toggle('cpfocus', cpFocus);
+  const b = document.getElementById('cpBtn');
+  b.classList.toggle('cpon', cpFocus);
+  b.textContent = cpFocus ? 'Show all tasks' : 'Focus critical path';
+}
+function toggleHrs() {
+  const off = document.body.classList.toggle('nohrs');
+  document.getElementById('hrsBtn').classList.toggle('primary', !off);
+  syncH();
+}
+function toggleDeps() {
+  depMode = (depMode + 1) % 3;
+  const btn = document.getElementById('depsBtn');
+  btn.textContent = '⤳ Deps: ' + ['Off','CP','All'][depMode];
+  btn.classList.toggle('primary', depMode > 0);
+  renderDeps();
+}
+
+function renderDeps() {
+  const old = document.getElementById('dep-svg'); if (old) old.remove();
+  if (!depMode) return;
+  const { mn, mx } = bnds();
+  const twpx = Math.ceil(diff(mn, mx) / 7) * WEEKW;
+  const rows = document.querySelectorAll('#gbody .gr');
+  const rowTop = i => rows[i] ? rows[i].offsetTop : i * ROWH;
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.id = 'dep-svg';
+  svg.setAttribute('width', twpx); svg.setAttribute('height', (tasks.length+1) * ROWH);
+  svg.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:15;overflow:visible;';
+  const defs = document.createElementNS(NS, 'defs');
+  [['arr','rgba(150,160,210,0.8)'],['arr-cp','#ff9f43']].forEach(([id, fill]) => {
+    const m = document.createElementNS(NS, 'marker');
+    m.setAttribute('id', id); m.setAttribute('markerWidth','8'); m.setAttribute('markerHeight','8');
+    m.setAttribute('refX','6'); m.setAttribute('refY','3'); m.setAttribute('orient','auto');
+    const p = document.createElementNS(NS, 'polygon');
+    p.setAttribute('points','0,0 6,3 0,6'); p.setAttribute('fill', fill);
+    m.appendChild(p); defs.appendChild(m);
+  });
+  svg.appendChild(defs);
+
+  tasks.forEach((t, ti) => {
+    if (t.group) return;
+    predList(t).forEach(w => {
+      const pred = byW(w); if (!pred) return;
+      const pi = tasks.indexOf(pred);
+      if (pi >= ti) return;                                     // forward links only
+      const driving = t.cp && pred.cp && fin(pred) === t.start;  // link that carries the critical path
+      if (depMode === 1 && !driving) return;
+      const color = driving ? '#ff9f43' : 'rgba(130,140,195,0.6)';
+      const x1 = diff(mn, pd(fin(pred))) * DAYW + (pred.ms ? 7 : 0);
+      const y1 = rowTop(pi) + ROWH/2;
+      const x2 = diff(mn, pd(t.start)) * DAYW - (t.ms ? 8 : 1);
+      const y2 = rowTop(ti) + ROWH/2;
+      const xm = Math.max(x1 + 6, Math.min(x2 - 6, x1 + 10));
+      const d = x2 - x1 >= 12
+        ? `M${x1},${y1} H${xm} V${y2} H${x2}`
+        : `M${x1},${y1} H${x1+6} V${y2 - 12} H${x2 - 8} V${y2} H${x2}`;
+      const path = document.createElementNS(NS, 'path');
+      path.setAttribute('d', d); path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', color);
+      path.setAttribute('stroke-width', driving ? '2' : '1.2');
+      path.setAttribute('stroke-dasharray', driving ? 'none' : '4,3');
+      path.setAttribute('marker-end', `url(#${driving ? 'arr-cp' : 'arr'})`);
+      svg.appendChild(path);
+    });
+  });
+  document.getElementById('gbody').appendChild(svg);
+}
+
+function render() {
+  compute(); renderL(); renderG(); renderCPBar(); syncH();
+  requestAnimationFrame(renderDeps);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderHead(); buildModal();
+  document.body.classList.add('nohrs');
+  render();
+  const lp = document.getElementById('lp'), rp = document.getElementById('rp');
+  let sy = false;
+  lp.addEventListener('scroll', () => { if(sy)return; sy=true; rp.scrollTop=lp.scrollTop; sy=false; });
+  rp.addEventListener('scroll', () => { if(sy)return; sy=true; lp.scrollTop=rp.scrollTop; sy=false; });
+  // open with today in view
+  rp.scrollLeft = Math.max(0, diff(bnds().mn, TODAY) * DAYW - 160);
+
+  const resizer = document.getElementById('resizer');
+  resizer.addEventListener('mousedown', e => {
+    const startX = e.clientX, startW = lp.offsetWidth;
+    resizer.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    const onMove = ev => { lp.style.width = Math.max(200, Math.min(startW + ev.clientX - startX, window.innerWidth - 200)) + 'px'; };
+    const onUp = () => {
+      resizer.classList.remove('dragging');
+      document.body.style.cursor = ''; document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+    e.preventDefault();
+  });
+});
+
+window.addEventListener('beforeprint', () => {
+  document.querySelector('.main-wrapper').style.cssText = 'display:block;height:auto;overflow:visible;';
+  document.getElementById('lp').style.cssText = 'width:100%;overflow:visible;border:none;';
+  document.getElementById('rp').style.cssText = 'overflow:visible;width:100%;';
+  document.getElementById('gsw').style.cssText = 'position:static;';
+});
+window.addEventListener('afterprint', () => {
+  document.querySelector('.main-wrapper').style.cssText = '';
+  document.getElementById('lp').style.cssText = '';
+  document.getElementById('rp').style.cssText = '';
+  document.getElementById('gsw').style.cssText = '';
+  render();
+});
+</script>
+</body>
+</html>
